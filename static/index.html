@@ -1,0 +1,77 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BNI PALMS Report Builder</title>
+    <link rel="stylesheet" href="/static/styles.css" />
+  </head>
+  <body>
+    <main class="page">
+      <header class="hero">
+        <p class="eyebrow">BNI PALMS</p>
+        <h1>Upload chapter reports in seconds.</h1>
+        <p class="subtitle">
+          Choose a chapter, select the report type, and drop the file. We’ll store
+          it for analytics later.
+        </p>
+      </header>
+
+      <section class="card">
+        <div class="field">
+          <label for="chapterSelect">Chapter</label>
+          <div class="chapter-row">
+            <select id="chapterSelect"></select>
+            <input
+              id="chapterCustom"
+              type="text"
+              placeholder="Or type a chapter name"
+            />
+          </div>
+        </div>
+
+        <div class="field">
+          <label for="reportType">Report Type</label>
+          <select id="reportType">
+            <option value="weekly">Weekly Report (.xls)</option>
+            <option value="ytd">YTD Report (.xls)</option>
+            <option value="traffic">Traffic Lights (.pdf)</option>
+          </select>
+        </div>
+
+        <div class="drop-zone single" id="fileDrop">
+          <div class="drop-title" id="dropTitle">Weekly Report (.xls)</div>
+          <div class="drop-hint" id="dropHint">Drop file or click to select</div>
+          <div class="drop-file" id="dropFile">No file selected</div>
+          <input id="fileInput" type="file" accept=".xls" />
+        </div>
+
+        <div class="file-list">
+          <div class="file-item">
+            <span>Weekly:</span>
+            <strong id="weeklyName">Not uploaded</strong>
+          </div>
+          <div class="file-item">
+            <span>YTD:</span>
+            <strong id="ytdName">Not uploaded</strong>
+          </div>
+          <div class="file-item">
+            <span>Traffic Lights:</span>
+            <strong id="trafficName">Not uploaded</strong>
+          </div>
+        </div>
+
+        <div class="status-row">
+          <div id="status" class="status"></div>
+        </div>
+
+        <div class="upload-log">
+          <div class="upload-title">Uploaded Files</div>
+          <ul id="uploadList"></ul>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>
