@@ -6,13 +6,17 @@ from typing import Dict, List
 from PyPDF2 import PdfReader
 
 SPREADSHEET_NS = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
+SS_INDEX_ATTR = "{urn:schemas-microsoft-com:office:spreadsheet}Index"
+SPREADSHEET_TABLE_START_ROW = 9
+REFERRAL_COLUMNS = ("RGI", "RGO", "RRI", "RRO")
+REFERRALS_TOTAL_COLUMN = "Referrals Total"
 
 
 def _row_values(row: ET.Element) -> List[str]:
     values: List[str] = []
     col_idx = 1
     for cell in row.findall("ss:Cell", SPREADSHEET_NS):
-        idx = cell.get("{urn:schemas-microsoft-com:office:spreadsheet}Index")
+        idx = cell.get(SS_INDEX_ATTR)
         if idx:
             idx_int = int(idx)
             while col_idx < idx_int:
@@ -50,6 +54,35 @@ def _parse_value(value: str):
     return text
 
 
+def _as_number(value: object) -> float:
+    if isinstance(value, bool):
+        return 0.0
+    if isinstance(value, (int, float)):
+        return float(value)
+    return 0.0
+
+
+def _round_total(value: float) -> object:
+    if float(value).is_integer():
+        return int(value)
+    return round(value, 2)
+
+
+def tally_referral_columns(rows: List[Dict[str, object]]) -> Dict[str, object]:
+    totals = {col: 0.0 for col in REFERRAL_COLUMNS}
+    for row in rows:
+        for col in REFERRAL_COLUMNS:
+            totals[col] += _as_number(row.get(col))
+    return {col: _round_total(total) for col, total in totals.items()}
+
+
+def _row_referrals_total(row: Dict[str, object]) -> object:
+    total = 0.0
+    for col in REFERRAL_COLUMNS:
+        total += _as_number(row.get(col))
+    return _round_total(total)
+
+
 def parse_spreadsheetml_xls(path: Path) -> List[Dict[str, object]]:
     tree = ET.parse(path)
     root = tree.getroot()
@@ -63,12 +96,31 @@ def parse_spreadsheetml_xls(path: Path) -> List[Dict[str, object]]:
     rows = table.findall("ss:Row", SPREADSHEET_NS)
     header: List[str] = []
     data_rows: List[Dict[str, object]] = []
+    row_num = 0
 
     for row in rows:
+        idx_attr = row.get(SS_INDEX_ATTR)
+        if idx_attr:
+            try:
+                row_num = int(idx_attr)
+            except ValueError:
+                row_num += 1
+        else:
+            row_num += 1
+
+        if row_num < SPREADSHEET_TABLE_START_ROW:
+            continue
+
         values = _row_values(row)
-        if not header:
+        if row_num == SPREADSHEET_TABLE_START_ROW:
             if "First Name" in values and "Last Name" in values:
                 header = [v.strip() if v else "" for v in values]
+            else:
+                # PALMS weekly/YTD files always have table headers on row 9.
+                return []
+            continue
+
+        if not header:
             continue
 
         if not any(v not in ("", None) for v in values):
@@ -87,6 +139,7 @@ def parse_spreadsheetml_xls(path: Path) -> List[Dict[str, object]]:
                 row_dict[col] = str(cell_value).strip()
             else:
                 row_dict[col] = _parse_value(cell_value)
+        row_dict[REFERRALS_TOTAL_COLUMN] = _row_referrals_total(row_dict)
         data_rows.append(row_dict)
 
     return data_rows
