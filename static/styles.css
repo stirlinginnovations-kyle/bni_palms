@@ -206,6 +206,90 @@ input[type="text"] {
   color: var(--muted);
 }
 
+.validation-review {
+  display: grid;
+  gap: 10px;
+  padding: 16px;
+  border-radius: 12px;
+  background: #fff;
+  border: 1px solid var(--outline);
+}
+
+.validation-subtitle {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.88rem;
+}
+
+.validation-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.validation-card {
+  border: 1px solid var(--outline);
+  border-radius: 10px;
+  padding: 12px;
+  background: #fdfdff;
+  display: grid;
+  gap: 10px;
+  align-content: start;
+}
+
+.validation-card h3 {
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.validation-content {
+  color: var(--muted);
+  font-size: 0.86rem;
+  line-height: 1.4;
+  display: grid;
+  gap: 8px;
+}
+
+.validation-empty {
+  color: var(--muted);
+}
+
+.validation-row {
+  display: grid;
+  gap: 3px;
+}
+
+.validation-label {
+  font-size: 0.76rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #344054;
+  text-transform: uppercase;
+}
+
+.validation-value {
+  color: var(--ink);
+  word-break: break-word;
+}
+
+.validation-list {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin: 0;
+  padding: 0;
+  list-style: none;
+}
+
+.validation-list li {
+  border-radius: 999px;
+  padding: 3px 8px;
+  border: 1px solid var(--outline);
+  background: #fff;
+  color: #334155;
+  font-size: 0.78rem;
+}
+
 @media (max-width: 720px) {
   .chapter-row {
     grid-template-columns: 1fr;
@@ -214,5 +298,9 @@ input[type="text"] {
   .actions {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .validation-grid {
+    grid-template-columns: 1fr;
   }
 }
