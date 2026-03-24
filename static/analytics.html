@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BNI Chapter Analytics</title>
+    <link rel="stylesheet" href="/static/analytics.css" />
+  </head>
+  <body>
+    <main class="analytics-page">
+      <header class="analytics-header">
+        <div class="brand-block">
+          <div class="brand-tag">BNI</div>
+          <div>
+            <p class="brand-subtitle">PALMS Analytics</p>
+            <h1 id="reportTitle">BNI Chapter Weekly Report</h1>
+          </div>
+        </div>
+        <a class="upload-link" href="/">Upload Center</a>
+      </header>
+
+      <section class="analytics-shell">
+        <div class="toolbar">
+          <label for="chapterSelect">Chapter</label>
+          <select id="chapterSelect"></select>
+          <div id="metaText" class="meta-text"></div>
+        </div>
+
+        <section class="weekly-cards">
+          <h2>This week&apos;s numbers</h2>
+          <div class="card-grid">
+            <article class="metric-card">
+              <p>Visitors</p>
+              <strong id="weeklyVisitors">0</strong>
+            </article>
+            <article class="metric-card">
+              <p>CEU&apos;s</p>
+              <strong id="weeklyCeu">0</strong>
+            </article>
+            <article class="metric-card">
+              <p>121&apos;s</p>
+              <strong id="weeklyOneToOnes">0</strong>
+            </article>
+            <article class="metric-card">
+              <p>Referrals Total</p>
+              <strong id="weeklyReferrals">0</strong>
+            </article>
+            <article class="metric-card">
+              <p>TYFCB</p>
+              <strong id="weeklyTyfcb">$0</strong>
+            </article>
+          </div>
+        </section>
+
+        <div class="panel-grid">
+          <section class="panel">
+            <h3>Year to date metrics</h3>
+            <div id="barChart" class="bar-chart"></div>
+          </section>
+
+          <section class="panel">
+            <h3>Traffic Light Report</h3>
+            <div class="traffic-layout">
+              <div class="donut-wrap">
+                <div id="trafficDonut" class="donut">
+                  <span id="trafficDonutLabel">0 members</span>
+                </div>
+              </div>
+              <ul id="trafficLegend" class="traffic-legend"></ul>
+            </div>
+          </section>
+        </div>
+
+        <div class="panel-grid">
+          <section class="panel">
+            <h3>Metrics year to date</h3>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Metric</th>
+                    <th>Current</th>
+                    <th>Yearly Goal</th>
+                    <th>% To Goal</th>
+                  </tr>
+                </thead>
+                <tbody id="ytdTableBody"></tbody>
+              </table>
+            </div>
+          </section>
+
+          <section class="panel">
+            <h3>100 Percent Club Members</h3>
+            <ul id="clubMembers" class="club-list"></ul>
+          </section>
+        </div>
+      </section>
+    </main>
+
+    <script src="/static/analytics.js"></script>
+  </body>
+</html>

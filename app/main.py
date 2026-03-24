@@ -32,6 +32,14 @@ SUPABASE = SupabaseClient.from_env()
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
 
+ANALYTICS_GOALS = {
+    "visitors": 190.0,
+    "one_to_ones": 4400.0,
+    "referrals": 1550.0,
+    "ceu": 2630.0,
+    "tyfcb": 2500000.0,
+}
+
 
 def load_chapters_file() -> List[str]:
     if not CHAPTERS_FILE.exists():
@@ -353,14 +361,385 @@ def _persist_upload_to_supabase(
     }
 
 
+def _to_iso_utc_from_mtime(path: Optional[Path]) -> Optional[str]:
+    if not path:
+        return None
+    return datetime.utcfromtimestamp(path.stat().st_mtime).replace(microsecond=0).isoformat() + "Z"
+
+
+def _latest_file(directory: Path, suffix: str) -> Optional[Path]:
+    if not directory.exists():
+        return None
+    files = [p for p in directory.glob(f"*{suffix}") if p.is_file()]
+    if not files:
+        return None
+    files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
+    return files[0]
+
+
+def _normalize_member_rows(rows: Iterable[Dict[str, object]]) -> List[Dict[str, object]]:
+    normalized: List[Dict[str, object]] = []
+    for row in rows:
+        first = str(row.get("first_name", row.get("First Name", ""))).strip()
+        last = str(row.get("last_name", row.get("Last Name", ""))).strip()
+        normalized.append(
+            {
+                "first_name": first,
+                "last_name": last,
+                "member_key": str(row.get("member_key", "")).strip(),
+                "v": _as_number(row.get("v", row.get("V"))),
+                "ceu": _as_number(row.get("ceu", row.get("CEU"))),
+                "one_to_one": _as_number(row.get("one_to_one", row.get("1-2-1"))),
+                "referrals_total": _as_number(
+                    row.get("referrals_total", row.get(REFERRALS_TOTAL_COLUMN))
+                ),
+                "tyfcb": _as_number(row.get("tyfcb", row.get("TYFCB"))),
+            }
+        )
+    return normalized
+
+
+def _normalize_traffic_rows(rows: Iterable[Dict[str, object]]) -> List[Dict[str, object]]:
+    normalized: List[Dict[str, object]] = []
+    for row in rows:
+        first = str(row.get("first_name", row.get("First Name", ""))).strip()
+        last = str(row.get("last_name", row.get("Last Name", ""))).strip()
+
+        raw = row.get("raw", {})
+        points_value = None
+        if isinstance(raw, dict):
+            points_value = raw.get("Points")
+        if points_value is None:
+            points_value = row.get("Points")
+
+        normalized.append(
+            {
+                "first_name": first,
+                "last_name": last,
+                "member_key": str(row.get("member_key", "")).strip(),
+                "referrals": _as_number(row.get("referrals", row.get("Referrals"))),
+                "points": _nullable_number(points_value),
+            }
+        )
+    return normalized
+
+
+def _sum_metric(rows: Iterable[Dict[str, object]], key: str) -> object:
+    return _round_total(sum(_as_number(row.get(key)) for row in rows))
+
+
+def _member_display_name(first: str, last: str) -> str:
+    first = (first or "").strip()
+    last = (last or "").strip()
+    if last and first:
+        return f"{last}, {first}"
+    return first or last
+
+
+def _build_traffic_distribution(
+    rows: Iterable[Dict[str, object]],
+) -> Dict[str, object]:
+    buckets = {
+        "club100": 0,
+        "green": 0,
+        "red": 0,
+        "yellow": 0,
+    }
+    club_members: List[str] = []
+    total = 0
+
+    for row in rows:
+        total += 1
+        points = _nullable_number(row.get("points"))
+        score = points if points is not None else 0.0
+        if score >= 100:
+            buckets["club100"] += 1
+            name = _member_display_name(
+                str(row.get("first_name", "")),
+                str(row.get("last_name", "")),
+            )
+            if name:
+                club_members.append(name)
+        elif score >= 60:
+            buckets["green"] += 1
+        elif score >= 40:
+            buckets["yellow"] += 1
+        else:
+            buckets["red"] += 1
+
+    def _pct(count: int) -> float:
+        if total <= 0:
+            return 0.0
+        return round((count / total) * 100.0, 1)
+
+    distribution = [
+        {
+            "key": "club100",
+            "label": "100 percent Club",
+            "count": buckets["club100"],
+            "pct": _pct(buckets["club100"]),
+            "color": "#6ca0ff",
+        },
+        {
+            "key": "green",
+            "label": "Green",
+            "count": buckets["green"],
+            "pct": _pct(buckets["green"]),
+            "color": "#9abf4f",
+        },
+        {
+            "key": "red",
+            "label": "Red",
+            "count": buckets["red"],
+            "pct": _pct(buckets["red"]),
+            "color": "#e84a4a",
+        },
+        {
+            "key": "yellow",
+            "label": "Yellow",
+            "count": buckets["yellow"],
+            "pct": _pct(buckets["yellow"]),
+            "color": "#e9c53a",
+        },
+    ]
+
+    unique_club_members = sorted({name for name in club_members if name})
+    return {"distribution": distribution, "club_members": unique_club_members}
+
+
+def _build_analytics_payload(
+    *,
+    chapter: str,
+    chapter_slug: str,
+    source: str,
+    weekly_rows: List[Dict[str, object]],
+    ytd_rows: List[Dict[str, object]],
+    traffic_rows: List[Dict[str, object]],
+    weekly_uploaded_at: Optional[str],
+    ytd_uploaded_at: Optional[str],
+    traffic_uploaded_at: Optional[str],
+    traffic_report_month: Optional[str],
+) -> Dict[str, object]:
+    weekly_summary = {
+        "visitors": _sum_metric(weekly_rows, "v"),
+        "ceu": _sum_metric(weekly_rows, "ceu"),
+        "one_to_ones": _sum_metric(weekly_rows, "one_to_one"),
+        "referrals": _sum_metric(weekly_rows, "referrals_total"),
+        "tyfcb": _sum_metric(weekly_rows, "tyfcb"),
+    }
+    ytd_summary = {
+        "visitors": _sum_metric(ytd_rows, "v"),
+        "ceu": _sum_metric(ytd_rows, "ceu"),
+        "one_to_ones": _sum_metric(ytd_rows, "one_to_one"),
+        "referrals": _sum_metric(ytd_rows, "referrals_total"),
+        "tyfcb": _sum_metric(ytd_rows, "tyfcb"),
+    }
+
+    bar_order = [
+        ("ceu", "CEU"),
+        ("referrals", "Referrals"),
+        ("one_to_ones", "One to Ones"),
+        ("visitors", "Visitors"),
+        ("tyfcb", "TYFCB"),
+    ]
+    bar_metrics = []
+    for key, label in bar_order:
+        current = float(_as_number(ytd_summary.get(key)))
+        goal = float(ANALYTICS_GOALS[key])
+        bar_metrics.append(
+            {
+                "key": key,
+                "label": label,
+                "current": _round_total(current),
+                "goal": _round_total(goal),
+            }
+        )
+
+    ytd_metrics = []
+    table_order = [
+        ("visitors", "Visitors"),
+        ("one_to_ones", "One to Ones"),
+        ("referrals", "Referrals"),
+        ("ceu", "CEU"),
+        ("tyfcb", "TYFCB"),
+    ]
+    for key, label in table_order:
+        current = float(_as_number(ytd_summary.get(key)))
+        goal = float(ANALYTICS_GOALS[key])
+        pct_to_goal = round((current / goal) * 100.0, 1) if goal > 0 else 0.0
+        ytd_metrics.append(
+            {
+                "key": key,
+                "metric": label,
+                "current": _round_total(current),
+                "yearly_goal": _round_total(goal),
+                "pct_to_goal": pct_to_goal,
+            }
+        )
+
+    traffic_parts = _build_traffic_distribution(traffic_rows)
+    return {
+        "chapter": chapter,
+        "chapter_slug": chapter_slug,
+        "source": source,
+        "generated_at": datetime.utcnow().replace(microsecond=0).isoformat() + "Z",
+        "updated_at": {
+            "weekly_uploaded_at": weekly_uploaded_at,
+            "ytd_uploaded_at": ytd_uploaded_at,
+            "traffic_uploaded_at": traffic_uploaded_at,
+            "traffic_report_month": traffic_report_month,
+        },
+        "has_data": {
+            "weekly": bool(weekly_rows),
+            "ytd": bool(ytd_rows),
+            "traffic": bool(traffic_rows),
+        },
+        "weekly_summary": weekly_summary,
+        "ytd_summary": ytd_summary,
+        "bar_metrics": bar_metrics,
+        "ytd_metrics": ytd_metrics,
+        "traffic_distribution": traffic_parts["distribution"],
+        "club_members": traffic_parts["club_members"],
+    }
+
+
+def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
+    if not SUPABASE:
+        raise SupabaseError("Supabase is not configured.")
+
+    chapter_slug = slugify(chapter)
+    chapter_row = SUPABASE.get_chapter_by_slug(chapter_slug)
+    if not chapter_row:
+        return _build_analytics_payload(
+            chapter=chapter,
+            chapter_slug=chapter_slug,
+            source="supabase",
+            weekly_rows=[],
+            ytd_rows=[],
+            traffic_rows=[],
+            weekly_uploaded_at=None,
+            ytd_uploaded_at=None,
+            traffic_uploaded_at=None,
+            traffic_report_month=None,
+        )
+
+    chapter_id = str(chapter_row["id"])
+    weekly_upload = SUPABASE.get_latest_chapter_upload(
+        chapter_id=chapter_id, report_type="weekly"
+    )
+    ytd_upload = SUPABASE.get_latest_chapter_upload(
+        chapter_id=chapter_id, report_type="ytd"
+    )
+    traffic_upload = SUPABASE.get_latest_traffic_upload()
+
+    weekly_rows = _normalize_member_rows(
+        SUPABASE.get_chapter_member_rows_for_upload(int(weekly_upload["id"]))
+        if weekly_upload
+        else []
+    )
+    ytd_rows = _normalize_member_rows(
+        SUPABASE.get_chapter_member_rows_for_upload(int(ytd_upload["id"]))
+        if ytd_upload
+        else []
+    )
+    traffic_rows = _normalize_traffic_rows(
+        SUPABASE.get_traffic_rows_for_upload(
+            traffic_upload_id=int(traffic_upload["id"]),
+            chapter_slug=chapter_slug,
+        )
+        if traffic_upload
+        else []
+    )
+
+    return _build_analytics_payload(
+        chapter=str(chapter_row.get("name") or chapter),
+        chapter_slug=chapter_slug,
+        source="supabase",
+        weekly_rows=weekly_rows,
+        ytd_rows=ytd_rows,
+        traffic_rows=traffic_rows,
+        weekly_uploaded_at=str(weekly_upload.get("uploaded_at")) if weekly_upload else None,
+        ytd_uploaded_at=str(ytd_upload.get("uploaded_at")) if ytd_upload else None,
+        traffic_uploaded_at=str(traffic_upload.get("uploaded_at")) if traffic_upload else None,
+        traffic_report_month=str(traffic_upload.get("report_month")) if traffic_upload else None,
+    )
+
+
+def _load_local_analytics(chapter: str) -> Dict[str, object]:
+    chapter_slug = slugify(chapter)
+    chapter_dir = UPLOADS_DIR / chapter_slug
+    weekly_path = _latest_file(chapter_dir / "weekly", ".xls")
+    ytd_path = _latest_file(chapter_dir / "ytd", ".xls")
+    traffic_path = _latest_file(chapter_dir / "traffic", ".pdf")
+
+    weekly_rows_raw = parse_spreadsheetml_xls(weekly_path) if weekly_path else []
+    ytd_rows_raw = parse_spreadsheetml_xls(ytd_path) if ytd_path else []
+    traffic_rows_raw = parse_traffic_lights_pdf(traffic_path) if traffic_path else []
+
+    chapter_norm = normalize_chapter(chapter)
+    filtered_traffic_rows = [
+        row
+        for row in traffic_rows_raw
+        if normalize_chapter(str(row.get("Chapter", ""))) == chapter_norm
+    ]
+
+    return _build_analytics_payload(
+        chapter=chapter,
+        chapter_slug=chapter_slug,
+        source="local",
+        weekly_rows=_normalize_member_rows(weekly_rows_raw),
+        ytd_rows=_normalize_member_rows(ytd_rows_raw),
+        traffic_rows=_normalize_traffic_rows(filtered_traffic_rows),
+        weekly_uploaded_at=_to_iso_utc_from_mtime(weekly_path),
+        ytd_uploaded_at=_to_iso_utc_from_mtime(ytd_path),
+        traffic_uploaded_at=_to_iso_utc_from_mtime(traffic_path),
+        traffic_report_month=infer_traffic_report_month(traffic_path.name)
+        if traffic_path
+        else None,
+    )
+
+
 @app.get("/")
 def index() -> FileResponse:
     return FileResponse(STATIC_DIR / "index.html")
 
 
+@app.get("/login")
+def login_page() -> FileResponse:
+    # Staged page for future paywall/auth rollout. Not enforced yet.
+    return FileResponse(STATIC_DIR / "login.html")
+
+
+@app.get("/analytics")
+def analytics_page() -> FileResponse:
+    return FileResponse(STATIC_DIR / "analytics.html")
+
+
 @app.get("/api/chapters")
 def chapters() -> List[str]:
     return load_chapters()
+
+
+@app.get("/api/analytics")
+def analytics(chapter: str) -> Dict[str, object]:
+    chapter = (chapter or "").strip()
+    if not chapter:
+        raise HTTPException(status_code=400, detail="Chapter is required.")
+
+    if SUPABASE:
+        try:
+            return _load_supabase_analytics(chapter)
+        except SupabaseError:
+            # Fall back to local files if Supabase is unavailable at runtime.
+            pass
+
+    try:
+        return _load_local_analytics(chapter)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Failed to build analytics payload: {exc}",
+        ) from exc
 
 
 @app.post("/api/upload")

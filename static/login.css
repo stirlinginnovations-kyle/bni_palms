@@ -1,0 +1,223 @@
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Barlow+Condensed:wght@600;700&display=swap");
+
+:root {
+  --bg: #0e1218;
+  --bg-soft: #1a202c;
+  --card: #f6f8fc;
+  --ink: #0f172a;
+  --muted: #5b6475;
+  --line: rgba(15, 23, 42, 0.16);
+  --accent: #d7192d;
+  --accent-dark: #951220;
+  --accent-gold: #e8bc2f;
+}
+
+*,
+*::before,
+*::after {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  font-family: "Manrope", "Segoe UI", sans-serif;
+  background:
+    radial-gradient(1100px 550px at -10% -20%, #263349 0%, transparent 60%),
+    radial-gradient(820px 420px at 105% 105%, #2e2233 0%, transparent 60%),
+    linear-gradient(140deg, #111827, #0e1218 50%, #141b25);
+  color: #f8fafc;
+}
+
+.login-page {
+  min-height: 100vh;
+  padding: 36px 18px;
+  display: grid;
+  place-items: center;
+}
+
+.login-shell {
+  width: min(1080px, 100%);
+  display: grid;
+  grid-template-columns: 1.05fr 0.95fr;
+  border-radius: 20px;
+  overflow: hidden;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  box-shadow: 0 24px 56px rgba(0, 0, 0, 0.45);
+}
+
+.promo {
+  padding: 36px 32px;
+  background:
+    linear-gradient(160deg, rgba(215, 25, 45, 0.16), transparent 46%),
+    linear-gradient(200deg, rgba(232, 188, 47, 0.12), transparent 40%),
+    var(--bg-soft);
+  display: grid;
+  align-content: start;
+  gap: 14px;
+}
+
+.kicker {
+  margin: 0;
+  font-family: "Barlow Condensed", sans-serif;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #d2dae8;
+}
+
+.promo h1 {
+  margin: 0;
+  font-size: clamp(2rem, 4vw, 3rem);
+  line-height: 1.05;
+}
+
+.blurb {
+  margin: 0;
+  color: #d4dbeb;
+  line-height: 1.5;
+}
+
+.feature-list {
+  margin: 6px 0 0;
+  padding: 0;
+  list-style: none;
+  display: grid;
+  gap: 8px;
+}
+
+.feature-list li {
+  position: relative;
+  padding-left: 18px;
+  color: #dce3f2;
+}
+
+.feature-list li::before {
+  content: "";
+  position: absolute;
+  left: 0;
+  top: 0.6em;
+  width: 8px;
+  height: 8px;
+  border-radius: 50%;
+  background: linear-gradient(160deg, var(--accent-gold), #f8d66a);
+}
+
+.back-link {
+  margin-top: 10px;
+  display: inline-block;
+  color: #ffffff;
+  font-weight: 700;
+  text-decoration: none;
+  border-bottom: 2px solid rgba(255, 255, 255, 0.5);
+  width: fit-content;
+}
+
+.auth-card {
+  background: var(--card);
+  color: var(--ink);
+  padding: 36px 32px;
+  display: grid;
+  align-content: start;
+  gap: 18px;
+}
+
+.auth-head h2 {
+  margin: 0;
+  font-size: 1.8rem;
+}
+
+.auth-head p {
+  margin: 8px 0 0;
+  color: var(--muted);
+}
+
+.badge {
+  margin: 0 0 8px;
+  display: inline-block;
+  border-radius: 999px;
+  background: rgba(215, 25, 45, 0.12);
+  color: var(--accent-dark);
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  font-size: 0.72rem;
+  padding: 4px 10px;
+}
+
+.auth-form {
+  display: grid;
+  gap: 8px;
+}
+
+.auth-form label {
+  font-size: 0.84rem;
+  font-weight: 700;
+  color: #334155;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+}
+
+.auth-form input {
+  width: 100%;
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  padding: 12px 13px;
+  font-size: 0.97rem;
+  background: #ffffff;
+  color: var(--ink);
+}
+
+.auth-form input:focus {
+  outline: none;
+  border-color: #6f86b3;
+  box-shadow: 0 0 0 3px rgba(111, 134, 179, 0.2);
+}
+
+.password-row {
+  display: grid;
+  grid-template-columns: 1fr auto;
+  gap: 8px;
+}
+
+.toggle-btn {
+  border-radius: 10px;
+  border: 1px solid var(--line);
+  background: #f8fafc;
+  color: #334155;
+  font-weight: 700;
+  padding: 0 14px;
+}
+
+.submit-btn {
+  margin-top: 10px;
+  border: none;
+  border-radius: 12px;
+  background: linear-gradient(155deg, var(--accent), var(--accent-dark));
+  color: #ffffff;
+  font-weight: 800;
+  letter-spacing: 0.02em;
+  padding: 13px 14px;
+  cursor: pointer;
+}
+
+.message {
+  margin: 0;
+  border-radius: 10px;
+  border: 1px solid rgba(148, 163, 184, 0.35);
+  background: #eef2f7;
+  color: #334155;
+  padding: 10px 12px;
+  font-size: 0.9rem;
+}
+
+.message.warning {
+  border-color: rgba(145, 103, 11, 0.35);
+  background: #fff6df;
+  color: #7a5308;
+}
+
+@media (max-width: 920px) {
+  .login-shell {
+    grid-template-columns: 1fr;
+  }
+}

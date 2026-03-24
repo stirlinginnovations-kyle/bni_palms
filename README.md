@@ -17,6 +17,13 @@ python -m uvicorn app.main:app --reload
 
 Then open `http://127.0.0.1:8000`.
 
+Analytics page:
+- `http://127.0.0.1:8000/analytics`
+
+Login page (staged, not enforced yet):
+- `http://127.0.0.1:8000/login`
+- Currently UI-only for upcoming auth/paywall rollout.
+
 ## Supabase runtime config
 To persist uploads to Supabase (storage + tables), set:
 
@@ -72,6 +79,11 @@ What it creates:
 - `public.chapter_report_member_rows_reporting` view (end-file shape columns including `"Full_name"`, `"P"`, `"A"`, `"L"`, `"M"`, `"S"`, `"FALSE"`, `"121's"`, `"TYFCB"`, `"CEU"`, `"Referals Total"`)
 - `public.chapter_upload_tables` view (maps chapter id/name/slug to its generated chapter upload table name)
 - private storage bucket: `chapter-reports`
+
+## Analytics API
+- `GET /api/analytics?chapter=<chapter-name>`
+- Returns weekly summary cards, YTD metric/goal data, traffic-light distribution, and 100 percent club member names for the selected chapter.
+- Uses Supabase when configured; otherwise falls back to latest local files under `uploads/<chapter_slug>/`.
 
 Recommended object paths:
 - `chapters/{chapter_slug}/weekly.xls`

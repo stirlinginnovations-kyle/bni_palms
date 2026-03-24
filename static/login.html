@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BNI Access Portal</title>
+    <link rel="stylesheet" href="/static/login.css" />
+  </head>
+  <body>
+    <main class="login-page">
+      <section class="login-shell">
+        <aside class="promo">
+          <p class="kicker">BNI PALMS</p>
+          <h1>Access Portal</h1>
+          <p class="blurb">
+            This login flow is being staged for a future paywall launch.
+            It is visible for UI review only and is not active yet.
+          </p>
+          <ul class="feature-list">
+            <li>Chapter-level analytics access</li>
+            <li>Role-based data controls</li>
+            <li>Subscription-gated dashboard views</li>
+          </ul>
+          <a class="back-link" href="/">Back to Upload Center</a>
+        </aside>
+
+        <section class="auth-card">
+          <div class="auth-head">
+            <p class="badge">Preview Mode</p>
+            <h2>Sign In</h2>
+            <p>Auth is currently disabled while paywall logic is in development.</p>
+          </div>
+
+          <form id="loginForm" class="auth-form">
+            <label for="email">Email</label>
+            <input
+              id="email"
+              name="email"
+              type="email"
+              autocomplete="email"
+              placeholder="name@company.com"
+              required
+            />
+
+            <label for="password">Password</label>
+            <div class="password-row">
+              <input
+                id="password"
+                name="password"
+                type="password"
+                autocomplete="current-password"
+                placeholder="Enter password"
+                required
+              />
+              <button type="button" id="togglePassword" class="toggle-btn">Show</button>
+            </div>
+
+            <button class="submit-btn" type="submit">Sign In (Coming Soon)</button>
+          </form>
+
+          <p id="loginMessage" class="message">
+            Login endpoint is intentionally disabled for now.
+          </p>
+        </section>
+      </section>
+    </main>
+
+    <script src="/static/login.js"></script>
+  </body>
+</html>

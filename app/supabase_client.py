@@ -117,6 +117,86 @@ class SupabaseClient:
                 output.append(name)
         return output
 
+    def get_chapter_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/chapters",
+            query={
+                "select": "id,name,slug",
+                "slug": f"eq.{slug}",
+                "limit": "1",
+            },
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        return None
+
+    def get_latest_chapter_upload(
+        self, *, chapter_id: str, report_type: str
+    ) -> Optional[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/chapter_report_uploads",
+            query={
+                "select": "id,chapter_id,report_type,storage_path,uploaded_at",
+                "chapter_id": f"eq.{chapter_id}",
+                "report_type": f"eq.{report_type}",
+                "order": "uploaded_at.desc,id.desc",
+                "limit": "1",
+            },
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        return None
+
+    def get_chapter_member_rows_for_upload(self, upload_id: int) -> List[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/chapter_report_member_rows",
+            query={
+                "select": (
+                    "first_name,last_name,member_key,p,a,l,m,s,"
+                    "rgi,rgo,rri,rro,v,one_to_one,tyfcb,ceu,referrals_total"
+                ),
+                "upload_id": f"eq.{upload_id}",
+                "order": "last_name.asc,first_name.asc",
+            },
+        )
+        if isinstance(rows, list):
+            return [dict(row) for row in rows]
+        return []
+
+    def get_latest_traffic_upload(self) -> Optional[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/traffic_light_uploads",
+            query={
+                "select": "id,report_month,storage_path,uploaded_at",
+                "order": "report_month.desc,uploaded_at.desc,id.desc",
+                "limit": "1",
+            },
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        return None
+
+    def get_traffic_rows_for_upload(
+        self, *, traffic_upload_id: int, chapter_slug: str
+    ) -> List[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/traffic_light_member_rows",
+            query={
+                "select": "first_name,last_name,member_key,referrals,raw",
+                "traffic_upload_id": f"eq.{traffic_upload_id}",
+                "chapter_slug": f"eq.{chapter_slug}",
+                "order": "last_name.asc,first_name.asc",
+            },
+        )
+        if isinstance(rows, list):
+            return [dict(row) for row in rows]
+        return []
+
     def upsert_chapter(self, *, name: str, slug: str) -> Dict[str, Any]:
         rows = self._request(
             "POST",

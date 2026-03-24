@@ -59,6 +59,12 @@ h1 {
   max-width: 640px;
 }
 
+.subtitle a {
+  color: var(--accent-dark);
+  font-weight: 700;
+  text-decoration-thickness: 2px;
+}
+
 .card {
   background: var(--card);
   border-radius: 16px;
