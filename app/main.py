@@ -79,18 +79,9 @@ def slugify(value: str) -> str:
 
 
 def load_chapters() -> List[str]:
-    file_chapters = load_chapters_file()
     if not SUPABASE:
-        return file_chapters
-    try:
-        db_chapters = SUPABASE.list_active_chapters()
-        if db_chapters:
-            return db_chapters
-        for chapter in file_chapters:
-            SUPABASE.upsert_chapter(name=chapter, slug=slugify(chapter))
-        return sorted(file_chapters)
-    except SupabaseError:
-        return file_chapters
+        raise SupabaseError("Supabase is not configured.")
+    return SUPABASE.list_active_chapters()
 
 
 def safe_filename(name: str) -> str:
@@ -753,7 +744,15 @@ def analytics_page() -> FileResponse:
 
 @app.get("/api/chapters")
 def chapters() -> List[str]:
-    return load_chapters()
+    if not SUPABASE:
+        raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
+    try:
+        return load_chapters()
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=502,
+            detail=f"Failed to load chapters from Supabase: {exc}",
+        ) from exc
 
 
 @app.get("/api/analytics")

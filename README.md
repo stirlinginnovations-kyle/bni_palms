@@ -56,16 +56,10 @@ If these vars are not set, uploads and analytics endpoints return `503` until Su
   - replaces parsed member rows for that month in `public.traffic_light_member_rows`
 
 ## Chapters list
-Update the chapter dropdown by editing `chapters.json`:
+`/api/chapters` is read from Supabase `public.chapters` only.
 
-```json
-{
-  "chapters": ["St. Charles", "Abundant Connections"]
-}
-```
-
-When Supabase is configured, `/api/chapters` reads active chapters from `public.chapters`.  
-If the table is empty, it seeds from `chapters.json` automatically.
+To add/update chapters, edit records in Supabase `public.chapters`
+(`name`, `slug`, `is_active`) rather than local files.
 
 ## Supabase schema
 Run `supabase/schema.sql` in your Supabase SQL Editor.
