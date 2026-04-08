@@ -4,11 +4,12 @@ from pathlib import Path
 from typing import Dict, List
 
 from PyPDF2 import PdfReader
+from openpyxl import load_workbook
 
 SPREADSHEET_NS = {"ss": "urn:schemas-microsoft-com:office:spreadsheet"}
 SS_INDEX_ATTR = "{urn:schemas-microsoft-com:office:spreadsheet}Index"
 SPREADSHEET_TABLE_START_ROW = 9
-REFERRAL_COLUMNS = ("RGI", "RGO", "RRI", "RRO")
+REFERRAL_COLUMNS = ("RGI", "RGO")
 REFERRALS_TOTAL_COLUMN = "Referrals Total"
 
 
@@ -143,6 +144,89 @@ def parse_spreadsheetml_xls(path: Path) -> List[Dict[str, object]]:
         data_rows.append(row_dict)
 
     return data_rows
+
+
+def _parse_excel_cell(value: object):
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return value
+    if isinstance(value, (int, float)):
+        return value
+    return _parse_value(str(value))
+
+
+def parse_openxml_xlsx(path: Path) -> List[Dict[str, object]]:
+    workbook = load_workbook(filename=path, read_only=True, data_only=True)
+    try:
+        worksheet = workbook.worksheets[0] if workbook.worksheets else None
+        if worksheet is None:
+            return []
+
+        header: List[str] = []
+        data_rows: List[Dict[str, object]] = []
+
+        row_iter = worksheet.iter_rows(
+            min_row=SPREADSHEET_TABLE_START_ROW,
+            values_only=True,
+        )
+        for offset, row_values in enumerate(row_iter):
+            row_num = SPREADSHEET_TABLE_START_ROW + offset
+            values = list(row_values or [])
+
+            if row_num == SPREADSHEET_TABLE_START_ROW:
+                header = [str(v).strip() if v is not None else "" for v in values]
+                if "First Name" not in header or "Last Name" not in header:
+                    return []
+                continue
+
+            if not header:
+                continue
+
+            if not any(v not in ("", None) for v in values):
+                continue
+
+            first_cell = str(values[0]).strip() if values and values[0] is not None else ""
+            if first_cell in {"Visitors", "BNI", "Total"}:
+                break
+
+            row_dict: Dict[str, object] = {}
+            for idx, col in enumerate(header):
+                if not col:
+                    continue
+                cell_value = values[idx] if idx < len(values) else None
+                if col in {"First Name", "Last Name"}:
+                    row_dict[col] = str(cell_value or "").strip()
+                else:
+                    row_dict[col] = _parse_excel_cell(cell_value)
+            row_dict[REFERRALS_TOTAL_COLUMN] = _row_referrals_total(row_dict)
+            data_rows.append(row_dict)
+
+        return data_rows
+    finally:
+        workbook.close()
+
+
+def parse_chapter_spreadsheet(path: Path) -> List[Dict[str, object]]:
+    ext = path.suffix.lower()
+    if ext == ".xlsx":
+        return parse_openxml_xlsx(path)
+
+    if ext == ".xls":
+        # Primary format in current workflow.
+        rows = parse_spreadsheetml_xls(path)
+        if rows:
+            return rows
+        # Some users rename/export modern Excel files with .xls extension.
+        try:
+            return parse_openxml_xlsx(path)
+        except Exception:
+            return []
+
+    if ext == ".xlsm":
+        return parse_openxml_xlsx(path)
+
+    return []
 
 
 TL_COLUMNS = [

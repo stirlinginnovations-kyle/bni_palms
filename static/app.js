@@ -6,6 +6,7 @@ const dropTitle = document.getElementById("dropTitle");
 const dropFile = document.getElementById("dropFile");
 const fileDrop = document.getElementById("fileDrop");
 const statusEl = document.getElementById("status");
+const loadButton = document.getElementById("loadButton");
 const uploadList = document.getElementById("uploadList");
 const validationEls = {
   weekly: document.getElementById("weeklyValidation"),
@@ -17,6 +18,12 @@ const fileLabels = {
   weekly: document.getElementById("weeklyName"),
   ytd: document.getElementById("ytdName"),
   traffic: document.getElementById("trafficName"),
+};
+
+const selectedStore = {
+  weekly: null,
+  ytd: null,
+  traffic: null,
 };
 
 const fileStore = {
@@ -72,16 +79,17 @@ async function loadChapters() {
 }
 
 function getTypeLabel(type) {
-  if (type === "weekly") return "Weekly Report (.xls)";
-  if (type === "ytd") return "YTD Report (.xls)";
+  if (type === "weekly") return "Weekly Report (.xls/.xlsx)";
+  if (type === "ytd") return "YTD Report (.xls/.xlsx)";
   return "Traffic Lights (.pdf)";
 }
 
 function updateDropMeta() {
   const type = reportType.value;
   dropTitle.textContent = getTypeLabel(type);
-  dropFile.textContent = "No file selected";
-  fileInput.accept = type === "traffic" ? ".pdf" : ".xls";
+  const selected = selectedStore[type];
+  dropFile.textContent = selected ? `Selected: ${selected.name}` : "No file selected";
+  fileInput.accept = type === "traffic" ? ".pdf" : ".xls,.xlsx";
 }
 
 function addUploadLog(type, fileName) {
@@ -131,6 +139,18 @@ function appendValidationList(container, label, values) {
   container.appendChild(row);
 }
 
+function formatReferralTally(validation) {
+  const tally = validation?.referral_tally;
+  if (!tally || typeof tally !== "object") return "";
+  const columns = Array.isArray(validation?.referral_columns)
+    ? validation.referral_columns
+    : Object.keys(tally);
+  return columns
+    .filter((col) => col in tally)
+    .map((col) => `${col} ${tally[col] ?? 0}`)
+    .join(", ");
+}
+
 function renderValidation(type) {
   const container = validationEls[type];
   if (!container) return;
@@ -166,11 +186,11 @@ function renderValidation(type) {
   }
 
   if (validation.referral_tally) {
-    const tally = validation.referral_tally;
+    const tallyText = formatReferralTally(validation);
     appendValidationRow(
       container,
       "Referral Tally",
-      `RGI ${tally.RGI ?? 0}, RGO ${tally.RGO ?? 0}, RRI ${tally.RRI ?? 0}, RRO ${tally.RRO ?? 0}`,
+      tallyText || "N/A",
     );
   }
 
@@ -180,6 +200,19 @@ function renderValidation(type) {
       "Referrals Total",
       String(validation.referrals_total),
     );
+  }
+
+  if (
+    Array.isArray(validation.key_metrics_summary) &&
+    validation.key_metrics_summary.length
+  ) {
+    validation.key_metrics_summary.forEach((metric) => {
+      appendValidationRow(
+        container,
+        String(metric.label || "Metric"),
+        String(metric.value ?? 0),
+      );
+    });
   }
 
   if (validation.chapters_detected_count !== undefined) {
@@ -206,20 +239,45 @@ function renderValidation(type) {
 function getValidationStatusMessage(type, validation) {
   if (!validation) return "Upload complete.";
 
-  const parts = [`Upload complete. Rows parsed: ${validation.rows_parsed ?? 0}.`];
+  const parts = [
+    `Loaded to analytics. Rows parsed: ${validation.rows_parsed ?? 0}.`,
+  ];
   if (validation.referrals_total !== undefined) {
     parts.push(`Referrals total: ${validation.referrals_total}.`);
   }
   if ((type === "weekly" || type === "ytd") && validation.referral_tally) {
-    const tally = validation.referral_tally;
-    parts.push(
-      `RGI ${tally.RGI ?? 0}, RGO ${tally.RGO ?? 0}, RRI ${tally.RRI ?? 0}, RRO ${tally.RRO ?? 0}.`,
-    );
+    const tallyText = formatReferralTally(validation);
+    if (tallyText) parts.push(`${tallyText}.`);
   }
   if (type === "traffic" && validation.chapters_detected_count !== undefined) {
     parts.push(`Chapters detected: ${validation.chapters_detected_count}.`);
   }
   return parts.join(" ");
+}
+
+function validateSelectedFile(type, file) {
+  if (!file) return false;
+  const lowerName = file.name.toLowerCase();
+  const isPdf = lowerName.endsWith(".pdf");
+  const isExcel = lowerName.endsWith(".xls") || lowerName.endsWith(".xlsx");
+  if (type === "traffic" && !isPdf) {
+    setStatus("Traffic Lights must be a .pdf file.", "error");
+    return false;
+  }
+  if ((type === "weekly" || type === "ytd") && !isExcel) {
+    setStatus("Weekly and YTD reports must be .xls or .xlsx files.", "error");
+    return false;
+  }
+  return true;
+}
+
+function selectFile(type, file) {
+  if (!validateSelectedFile(type, file)) return;
+  selectedStore[type] = file;
+  updateDropMeta();
+  setStatus(
+    `${getTypeLabel(type)} selected. Click "Load Selected Report To Analytics" to upload.`,
+  );
 }
 
 async function uploadFile(type, file) {
@@ -230,14 +288,7 @@ async function uploadFile(type, file) {
   }
   if (!file) return;
 
-  const isPdf = file.name.toLowerCase().endsWith(".pdf");
-  const isXls = file.name.toLowerCase().endsWith(".xls");
-  if (type === "traffic" && !isPdf) {
-    setStatus("Traffic Lights must be a .pdf file.", "error");
-    return;
-  }
-  if ((type === "weekly" || type === "ytd") && !isXls) {
-    setStatus("Weekly and YTD reports must be .xls files.", "error");
+  if (!validateSelectedFile(type, file)) {
     return;
   }
 
@@ -246,7 +297,7 @@ async function uploadFile(type, file) {
   formData.append("report_type", type);
   formData.append("file", file);
 
-  setStatus("Uploading...");
+  setStatus("Loading report to analytics...");
 
   try {
     const res = await fetch("/api/upload", {
@@ -259,8 +310,9 @@ async function uploadFile(type, file) {
     }
 
     fileStore[type] = file;
+    selectedStore[type] = null;
     updateFileLabel(type);
-    dropFile.textContent = file.name;
+    updateDropMeta();
     addUploadLog(type, file.name);
 
     validationStore[type] = {
@@ -290,15 +342,24 @@ function attachDropZone() {
     if (!event.dataTransfer.files.length) return;
     const file = event.dataTransfer.files[0];
     const type = reportType.value;
-    uploadFile(type, file);
+    selectFile(type, file);
   });
   fileInput.addEventListener("change", () => {
     if (!fileInput.files.length) return;
     const type = reportType.value;
-    uploadFile(type, fileInput.files[0]);
+    selectFile(type, fileInput.files[0]);
     fileInput.value = "";
   });
   reportType.addEventListener("change", updateDropMeta);
+  loadButton.addEventListener("click", () => {
+    const type = reportType.value;
+    const file = selectedStore[type];
+    if (!file) {
+      setStatus(`Select a ${getTypeLabel(type)} file first.`, "error");
+      return;
+    }
+    uploadFile(type, file);
+  });
 }
 
 loadChapters();

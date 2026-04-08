@@ -33,15 +33,18 @@ set SUPABASE_SERVICE_KEY=<sb_secret_or_service_role_key>
 set SUPABASE_STORAGE_BUCKET=chapter-reports
 ```
 
-If these vars are not set, the app falls back to local-only storage.
+If these vars are not set, uploads and analytics endpoints return `503` until Supabase is configured.
 
 ## Upload behavior
 - Local copy: files are always written under `uploads/<chapter>/<report_type>/` with a timestamped filename.
+- Source of truth: uploads are persisted to Supabase and analytics is read from Supabase.
 - Weekly/YTD:
   - parser ignores rows 1-8 and reads headers from row 9
-  - parser adds per-member `Referrals Total` = `RGI + RGO + RRI + RRO`
-  - uploads current file to `chapters/{chapter_slug}/{weekly|ytd}.xls`
+  - parser adds per-member `Referrals Total` = `RGI + RGO`
+  - accepts `.xls` and `.xlsx` uploads
+  - uploads current file to `chapters/{chapter_slug}/{weekly|ytd}.{xls|xlsx}` (matching uploaded extension)
   - uploads archive copy to `chapters/{chapter_slug}/archive/{report_type}/{timestamp}_{filename}`
+  - when a new weekly/ytd upload is loaded for a chapter, older uploads for that same chapter/report type are deleted from Supabase tables and old storage objects are removed
   - upserts chapter in `public.chapters`
   - inserts upload history row in `public.chapter_report_uploads` (trigger keeps `public.chapter_report_current` in sync)
   - mirrors each upload to a chapter-specific table: `public.chapter_uploads_<chapter_id_without_dashes>`
@@ -83,11 +86,11 @@ What it creates:
 ## Analytics API
 - `GET /api/analytics?chapter=<chapter-name>`
 - Returns weekly summary cards, YTD metric/goal data, traffic-light distribution, and 100 percent club member names for the selected chapter.
-- Uses Supabase when configured; otherwise falls back to latest local files under `uploads/<chapter_slug>/`.
+- Supabase is required; endpoint returns `503` until Supabase env vars are configured.
 
 Recommended object paths:
-- `chapters/{chapter_slug}/weekly.xls`
-- `chapters/{chapter_slug}/ytd.xls`
+- `chapters/{chapter_slug}/weekly.{xls|xlsx}`
+- `chapters/{chapter_slug}/ytd.{xls|xlsx}`
 - `traffic_lights/{yyyy-mm}/traffic.pdf`
 
 Optional archive paths:

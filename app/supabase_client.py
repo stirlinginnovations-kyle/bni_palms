@@ -221,6 +221,37 @@ class SupabaseClient:
             return dict(rows[0])
         raise SupabaseError("Failed to insert chapter_report_uploads row.")
 
+    def delete_chapter_report_uploads_except(
+        self, *, chapter_id: str, report_type: str, keep_upload_id: int
+    ) -> None:
+        self._request(
+            "DELETE",
+            "/rest/v1/chapter_report_uploads",
+            query={
+                "chapter_id": f"eq.{chapter_id}",
+                "report_type": f"eq.{report_type}",
+                "id": f"neq.{keep_upload_id}",
+            },
+            prefer="return=minimal",
+        )
+
+    def list_chapter_report_uploads(
+        self, *, chapter_id: str, report_type: str
+    ) -> List[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/chapter_report_uploads",
+            query={
+                "select": "id,storage_path",
+                "chapter_id": f"eq.{chapter_id}",
+                "report_type": f"eq.{report_type}",
+                "order": "uploaded_at.desc,id.desc",
+            },
+        )
+        if isinstance(rows, list):
+            return [dict(row) for row in rows]
+        return []
+
     def insert_chapter_report_member_rows(self, rows: List[Dict[str, Any]]) -> int:
         return self._insert_rows("chapter_report_member_rows", rows)
 
@@ -266,6 +297,23 @@ class SupabaseClient:
             content_type=content_type or "application/octet-stream",
             extra_headers={"x-upsert": "true" if upsert else "false"},
         )
+
+    def delete_object(self, *, object_path: str) -> None:
+        object_path = object_path.strip().lstrip("/")
+        if not object_path:
+            return
+        encoded_path = parse.quote(object_path, safe="/")
+        try:
+            self._request(
+                "DELETE",
+                f"/storage/v1/object/{self.config.bucket}/{encoded_path}",
+                prefer="return=minimal",
+            )
+        except SupabaseError as exc:
+            msg = str(exc).lower()
+            if "not found" in msg or "404" in msg:
+                return
+            raise
 
     def _insert_rows(self, table: str, rows: List[Dict[str, Any]]) -> int:
         if not rows:

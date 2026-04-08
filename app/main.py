@@ -17,7 +17,7 @@ from .parsers import (
     REFERRALS_TOTAL_COLUMN,
     SPREADSHEET_TABLE_START_ROW,
     TL_COLUMNS,
-    parse_spreadsheetml_xls,
+    parse_chapter_spreadsheet,
     parse_traffic_lights_pdf,
     tally_referral_columns,
 )
@@ -28,6 +28,10 @@ STATIC_DIR = APP_ROOT / "static"
 CHAPTERS_FILE = APP_ROOT / "chapters.json"
 UPLOADS_DIR = APP_ROOT / "uploads"
 SUPABASE = SupabaseClient.from_env()
+SUPABASE_REQUIRED_DETAIL = (
+    "Supabase is required for uploads and analytics. "
+    "Set SUPABASE_URL and SUPABASE_SERVICE_KEY, then restart the server."
+)
 
 app = FastAPI()
 app.mount("/static", StaticFiles(directory=STATIC_DIR), name="static")
@@ -203,6 +207,9 @@ def _upload_content_type(upload: UploadFile, report_type: str) -> str:
         return guessed
     if report_type == "traffic":
         return "application/pdf"
+    ext = Path(upload.filename or "").suffix.lower()
+    if ext == ".xlsx":
+        return "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet"
     return "application/vnd.ms-excel"
 
 
@@ -216,16 +223,24 @@ def _persist_upload_to_supabase(
     content: bytes,
     validation: Optional[Dict[str, object]],
     parsed_rows: List[Dict[str, object]],
-) -> Optional[Dict[str, object]]:
+) -> Dict[str, object]:
     if not SUPABASE:
-        return None
+        raise SupabaseError("Supabase is not configured.")
 
     content_type = _upload_content_type(upload, report_type)
     safe_original_name = safe_filename(upload.filename or "upload")
 
     if report_type in {"weekly", "ytd"}:
         chapter_row = SUPABASE.upsert_chapter(name=chapter, slug=chapter_slug)
-        current_path = f"chapters/{chapter_slug}/{report_type}.xls"
+        chapter_id = str(chapter_row["id"])
+        prior_uploads = SUPABASE.list_chapter_report_uploads(
+            chapter_id=chapter_id,
+            report_type=report_type,
+        )
+        chapter_ext = Path(safe_original_name).suffix.lower()
+        if chapter_ext not in {".xls", ".xlsx"}:
+            chapter_ext = ".xls"
+        current_path = f"chapters/{chapter_slug}/{report_type}{chapter_ext}"
         archive_path = (
             f"chapters/{chapter_slug}/archive/{report_type}/{timestamp}_{safe_original_name}"
         )
@@ -291,6 +306,24 @@ def _persist_upload_to_supabase(
         member_rows_inserted = SUPABASE.insert_chapter_report_member_rows(
             member_rows_payload
         )
+
+        # Keep only the newest upload per chapter/report_type.
+        # Older uploads and their member rows are removed via cascade.
+        SUPABASE.delete_chapter_report_uploads_except(
+            chapter_id=chapter_id,
+            report_type=report_type,
+            keep_upload_id=upload_id,
+        )
+        for prior in prior_uploads:
+            prior_path = str(prior.get("storage_path") or "").strip()
+            if prior_path and prior_path != archive_path:
+                SUPABASE.delete_object(object_path=prior_path)
+
+        # Ensure only one current object remains per report type.
+        for ext in (".xls", ".xlsx"):
+            previous_current_path = f"chapters/{chapter_slug}/{report_type}{ext}"
+            if previous_current_path != current_path:
+                SUPABASE.delete_object(object_path=previous_current_path)
 
         return {
             "table": "chapter_report_uploads",
@@ -367,10 +400,13 @@ def _to_iso_utc_from_mtime(path: Optional[Path]) -> Optional[str]:
     return datetime.utcfromtimestamp(path.stat().st_mtime).replace(microsecond=0).isoformat() + "Z"
 
 
-def _latest_file(directory: Path, suffix: str) -> Optional[Path]:
+def _latest_file(directory: Path, suffixes: Iterable[str] | str) -> Optional[Path]:
     if not directory.exists():
         return None
-    files = [p for p in directory.glob(f"*{suffix}") if p.is_file()]
+    suffix_list = [suffixes] if isinstance(suffixes, str) else list(suffixes)
+    files: List[Path] = []
+    for suffix in suffix_list:
+        files.extend(p for p in directory.glob(f"*{suffix}") if p.is_file())
     if not files:
         return None
     files.sort(key=lambda p: p.stat().st_mtime, reverse=True)
@@ -668,12 +704,12 @@ def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
 def _load_local_analytics(chapter: str) -> Dict[str, object]:
     chapter_slug = slugify(chapter)
     chapter_dir = UPLOADS_DIR / chapter_slug
-    weekly_path = _latest_file(chapter_dir / "weekly", ".xls")
-    ytd_path = _latest_file(chapter_dir / "ytd", ".xls")
+    weekly_path = _latest_file(chapter_dir / "weekly", (".xlsx", ".xls"))
+    ytd_path = _latest_file(chapter_dir / "ytd", (".xlsx", ".xls"))
     traffic_path = _latest_file(chapter_dir / "traffic", ".pdf")
 
-    weekly_rows_raw = parse_spreadsheetml_xls(weekly_path) if weekly_path else []
-    ytd_rows_raw = parse_spreadsheetml_xls(ytd_path) if ytd_path else []
+    weekly_rows_raw = parse_chapter_spreadsheet(weekly_path) if weekly_path else []
+    ytd_rows_raw = parse_chapter_spreadsheet(ytd_path) if ytd_path else []
     traffic_rows_raw = parse_traffic_lights_pdf(traffic_path) if traffic_path else []
 
     chapter_norm = normalize_chapter(chapter)
@@ -725,20 +761,14 @@ def analytics(chapter: str) -> Dict[str, object]:
     chapter = (chapter or "").strip()
     if not chapter:
         raise HTTPException(status_code=400, detail="Chapter is required.")
-
-    if SUPABASE:
-        try:
-            return _load_supabase_analytics(chapter)
-        except SupabaseError:
-            # Fall back to local files if Supabase is unavailable at runtime.
-            pass
-
+    if not SUPABASE:
+        raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
     try:
-        return _load_local_analytics(chapter)
-    except Exception as exc:
+        return _load_supabase_analytics(chapter)
+    except SupabaseError as exc:
         raise HTTPException(
-            status_code=500,
-            detail=f"Failed to build analytics payload: {exc}",
+            status_code=502,
+            detail=f"Failed to load analytics from Supabase: {exc}",
         ) from exc
 
 
@@ -756,13 +786,15 @@ async def upload_file(
 
     if report_type not in {"weekly", "ytd", "traffic"}:
         raise HTTPException(status_code=400, detail="Invalid report type.")
+    if not SUPABASE:
+        raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing file.")
 
     ext = Path(file.filename).suffix.lower()
-    if report_type in {"weekly", "ytd"} and ext != ".xls":
-        raise HTTPException(status_code=400, detail="Weekly/YTD must be .xls.")
+    if report_type in {"weekly", "ytd"} and ext not in {".xls", ".xlsx"}:
+        raise HTTPException(status_code=400, detail="Weekly/YTD must be .xls or .xlsx.")
     if report_type == "traffic" and ext != ".pdf":
         raise HTTPException(status_code=400, detail="Traffic Lights must be .pdf.")
 
@@ -783,11 +815,11 @@ async def upload_file(
     parsed_rows: List[Dict[str, object]] = []
     if report_type in {"weekly", "ytd"}:
         try:
-            rows = parse_spreadsheetml_xls(target_path)
+            rows = parse_chapter_spreadsheet(target_path)
         except Exception as exc:
             raise HTTPException(
                 status_code=400,
-                detail=f"Unable to parse {report_type.upper()} SpreadsheetML report.",
+                detail=f"Unable to parse {report_type.upper()} Excel report.",
             ) from exc
 
         parsed_rows = rows
@@ -798,7 +830,7 @@ async def upload_file(
         )
 
         validation = {
-            "kind": "spreadsheetml_xls",
+            "kind": "chapter_spreadsheet",
             "rows_parsed": len(rows),
             "columns_loaded": columns_loaded,
             "table_start_row": SPREADSHEET_TABLE_START_ROW,
@@ -806,6 +838,46 @@ async def upload_file(
             "row_referrals_total_column": REFERRALS_TOTAL_COLUMN,
             "referral_tally": referral_tally,
             "referrals_total": referral_total,
+            "key_metrics_summary": [
+                {
+                    "key": "v",
+                    "label": "V",
+                    "value": _round_total(
+                        sum(_as_number(row.get("V")) for row in rows)
+                    ),
+                },
+                {
+                    "key": "one_to_ones",
+                    "label": "1-2-1's",
+                    "value": _round_total(
+                        sum(_as_number(row.get("1-2-1")) for row in rows)
+                    ),
+                },
+                {
+                    "key": "tyfcb",
+                    "label": "TYFCB",
+                    "value": _round_total(
+                        sum(_as_number(row.get("TYFCB")) for row in rows)
+                    ),
+                },
+                {
+                    "key": "ceu",
+                    "label": "CEU",
+                    "value": _round_total(
+                        sum(_as_number(row.get("CEU")) for row in rows)
+                    ),
+                },
+                {
+                    "key": "referrals_total",
+                    "label": "Referrals Total",
+                    "value": _round_total(
+                        sum(
+                            _as_number(row.get(REFERRALS_TOTAL_COLUMN))
+                            for row in rows
+                        )
+                    ),
+                },
+            ],
             "sample_members": _sample_members(rows),
         }
     elif report_type == "traffic":
@@ -837,40 +909,37 @@ async def upload_file(
             "sample_members": _sample_members(rows),
         }
 
-    supabase_result = None
-    if SUPABASE:
-        try:
-            supabase_result = _persist_upload_to_supabase(
-                chapter=chapter,
-                chapter_slug=chapter_slug,
-                report_type=report_type,
-                timestamp=timestamp,
-                upload=file,
-                content=content,
-                validation=validation,
-                parsed_rows=parsed_rows,
-            )
-            if (
-                report_type == "traffic"
-                and validation is not None
-                and isinstance(supabase_result, dict)
-                and supabase_result.get("report_month")
-            ):
-                validation["report_month"] = supabase_result["report_month"]
-        except SupabaseError as exc:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Report parsed but failed to persist to Supabase: {exc}",
-            ) from exc
+    try:
+        supabase_result = _persist_upload_to_supabase(
+            chapter=chapter,
+            chapter_slug=chapter_slug,
+            report_type=report_type,
+            timestamp=timestamp,
+            upload=file,
+            content=content,
+            validation=validation,
+            parsed_rows=parsed_rows,
+        )
+        if (
+            report_type == "traffic"
+            and validation is not None
+            and isinstance(supabase_result, dict)
+            and supabase_result.get("report_month")
+        ):
+            validation["report_month"] = supabase_result["report_month"]
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Report parsed but failed to persist to Supabase: {exc}",
+        ) from exc
 
     response = {
         "status": "ok",
         "path": str(target_path),
         "validation": validation,
-        "storage_backend": "supabase" if supabase_result else "local",
+        "storage_backend": "supabase",
     }
-    if supabase_result:
-        response["supabase"] = supabase_result
+    response["supabase"] = supabase_result
     return response
 
 
@@ -895,8 +964,8 @@ async def process(
         await save_upload(ytd, ytd_path)
         await save_upload(traffic, traffic_path)
 
-        weekly_rows = parse_spreadsheetml_xls(weekly_path)
-        ytd_rows = parse_spreadsheetml_xls(ytd_path)
+        weekly_rows = parse_chapter_spreadsheet(weekly_path)
+        ytd_rows = parse_chapter_spreadsheet(ytd_path)
         traffic_rows = parse_traffic_lights_pdf(traffic_path)
 
         chapter_norm = normalize_chapter(chapter)

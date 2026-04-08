@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>BNI PALMS Report Builder</title>
-    <link rel="stylesheet" href="/static/styles.css" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260326" />
   </head>
   <body>
     <main class="page">
@@ -36,17 +36,23 @@
         <div class="field">
           <label for="reportType">Report Type</label>
           <select id="reportType">
-            <option value="weekly">Weekly Report (.xls)</option>
-            <option value="ytd">YTD Report (.xls)</option>
+            <option value="weekly">Weekly Report (.xls/.xlsx)</option>
+            <option value="ytd">YTD Report (.xls/.xlsx)</option>
             <option value="traffic">Traffic Lights (.pdf)</option>
           </select>
         </div>
 
         <div class="drop-zone single" id="fileDrop">
-          <div class="drop-title" id="dropTitle">Weekly Report (.xls)</div>
+          <div class="drop-title" id="dropTitle">Weekly Report (.xls/.xlsx)</div>
           <div class="drop-hint" id="dropHint">Drop file or click to select</div>
           <div class="drop-file" id="dropFile">No file selected</div>
-          <input id="fileInput" type="file" accept=".xls" />
+          <input id="fileInput" type="file" accept=".xls,.xlsx" />
+        </div>
+
+        <div class="actions">
+          <button id="loadButton" type="button" class="load-button">
+            Load Selected Report To Analytics
+          </button>
         </div>
 
         <div class="file-list">
@@ -102,6 +108,6 @@
       </section>
     </main>
 
-    <script src="/static/app.js"></script>
+    <script src="/static/app.js?v=20260326"></script>
   </body>
 </html>
