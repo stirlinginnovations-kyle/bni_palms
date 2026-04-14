@@ -223,6 +223,14 @@ function renderValidation(type) {
     );
   }
 
+  if (validation.score_average !== undefined) {
+    appendValidationRow(container, "Score Avg", String(validation.score_average));
+  }
+
+  if (validation.score_max !== undefined) {
+    appendValidationRow(container, "Score Max", String(validation.score_max));
+  }
+
   appendValidationList(container, "Sample Members", validation.sample_members || []);
   appendValidationList(
     container,
@@ -251,6 +259,12 @@ function getValidationStatusMessage(type, validation) {
   }
   if (type === "traffic" && validation.chapters_detected_count !== undefined) {
     parts.push(`Chapters detected: ${validation.chapters_detected_count}.`);
+  }
+  if (type === "traffic" && validation.score_average !== undefined) {
+    parts.push(`Score avg: ${validation.score_average}.`);
+  }
+  if (type === "traffic" && validation.score_max !== undefined) {
+    parts.push(`Score max: ${validation.score_max}.`);
   }
   return parts.join(" ");
 }

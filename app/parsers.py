@@ -254,6 +254,7 @@ TL_COLUMNS = [
     "VisitorsPts",
     "VisitorsAPW",
 ]
+TL_POINTS_INDEX = TL_COLUMNS.index("Points")
 
 
 def parse_traffic_lights_pdf(path: Path) -> List[Dict[str, object]]:
@@ -321,13 +322,15 @@ def parse_traffic_lights_pdf(path: Path) -> List[Dict[str, object]]:
                 first = ""
 
             nums = list(reversed(num_tokens))
+            score_value = _parse_value(nums[TL_POINTS_INDEX])
             row: Dict[str, object] = {
                 "Chapter": chapter,
                 "First Name": first,
                 "Last Name": last,
+                "Score": score_value,
+                # Keep legacy key so older normalization code remains compatible.
+                "Points": score_value,
             }
-            for col, val in zip(TL_COLUMNS, nums):
-                row[col] = _parse_value(val)
             rows.append(row)
 
     return rows

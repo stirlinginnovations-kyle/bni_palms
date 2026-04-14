@@ -53,6 +53,7 @@ If these vars are not set, uploads and analytics endpoints return `503` until Su
   - uploads current file to `traffic_lights/{yyyy-mm}/traffic.pdf`
   - uploads archive copy to `traffic_lights/archive/{yyyy-mm}/{timestamp}_{filename}`
   - upserts month row in `public.traffic_light_uploads`
+  - extracts chapter, member name, and score from each row
   - replaces parsed member rows for that month in `public.traffic_light_member_rows`
 
 ## Chapters list

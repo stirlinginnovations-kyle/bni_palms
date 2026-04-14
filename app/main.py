@@ -16,7 +16,6 @@ from .parsers import (
     REFERRAL_COLUMNS,
     REFERRALS_TOTAL_COLUMN,
     SPREADSHEET_TABLE_START_ROW,
-    TL_COLUMNS,
     parse_chapter_spreadsheet,
     parse_traffic_lights_pdf,
     tally_referral_columns,
@@ -360,6 +359,7 @@ def _persist_upload_to_supabase(
         chapter_name = str(row.get("Chapter", "")).strip()
         first = str(row.get("First Name", "")).strip()
         last = str(row.get("Last Name", "")).strip()
+        score = _nullable_number(row.get("Score", row.get("Points")))
         traffic_rows_payload.append(
             {
                 "traffic_upload_id": traffic_upload_id,
@@ -369,7 +369,8 @@ def _persist_upload_to_supabase(
                 "first_name": first,
                 "last_name": last,
                 "member_key": member_key(first, last),
-                "referrals": _nullable_number(row.get("Referrals")),
+                # Reuse existing numeric column; traffic analytics is score-based.
+                "referrals": score,
                 "raw": row,
             }
         )
@@ -436,8 +437,14 @@ def _normalize_traffic_rows(rows: Iterable[Dict[str, object]]) -> List[Dict[str,
         points_value = None
         if isinstance(raw, dict):
             points_value = raw.get("Points")
+            if points_value is None:
+                points_value = raw.get("Score")
         if points_value is None:
-            points_value = row.get("Points")
+            points_value = row.get("points", row.get("Points"))
+        if points_value is None:
+            points_value = row.get("Score")
+        if points_value is None:
+            points_value = row.get("referrals", row.get("Referrals"))
 
         normalized.append(
             {
@@ -896,15 +903,27 @@ async def upload_file(
                 if str(row.get("Chapter", "")).strip()
             }
         )
-        referrals_total = _round_total(sum(_as_number(row.get("Referrals")) for row in rows))
-
         validation = {
             "kind": "traffic_lights_pdf",
             "rows_parsed": len(rows),
-            "columns_loaded": ["Chapter", "First Name", "Last Name", *TL_COLUMNS],
+            "columns_loaded": ["Chapter", "First Name", "Last Name", "Score"],
             "chapters_detected": chapters_detected,
             "chapters_detected_count": len(chapters_detected),
-            "referrals_total": referrals_total,
+            "score_average": (
+                _round_total(
+                    sum(_as_number(row.get("Score", row.get("Points"))) for row in rows)
+                    / len(rows)
+                )
+                if rows
+                else 0
+            ),
+            "score_max": (
+                _round_total(
+                    max(_as_number(row.get("Score", row.get("Points"))) for row in rows)
+                )
+                if rows
+                else 0
+            ),
             "sample_members": _sample_members(rows),
         }
 
