@@ -1,7 +1,7 @@
 import re
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 from PyPDF2 import PdfReader
 from openpyxl import load_workbook
@@ -254,12 +254,60 @@ TL_COLUMNS = [
     "VisitorsPts",
     "VisitorsAPW",
 ]
-TL_POINTS_INDEX = TL_COLUMNS.index("Points")
+TL_POINTS_INDEX_LEGACY = TL_COLUMNS.index("Points")
+TL_POINTS_INDEX_CURRENT = 4
+TL_EXPECTED_NUMERIC_FIELDS = 23
+
+
+def _traffic_numeric_value(token: str) -> float | None:
+    value = _parse_value(token)
+    if isinstance(value, (int, float)):
+        return float(value)
+    return None
+
+
+def _percentile(values: List[float], pct: float) -> float:
+    if not values:
+        return 0.0
+    ordered = sorted(values)
+    idx = int((len(ordered) - 1) * pct)
+    return ordered[idx]
+
+
+def _select_traffic_points_index(numeric_rows: List[List[str]]) -> int:
+    # We support two known extraction layouts:
+    # - current PDF text layout: points is the 5th numeric token after member name
+    # - legacy layout: points aligns to the historical "Points" column index
+    candidates = [TL_POINTS_INDEX_CURRENT, TL_POINTS_INDEX_LEGACY]
+    best_idx = TL_POINTS_INDEX_CURRENT
+    best_score: Tuple[float, float] = (-1.0, -1.0)
+
+    for idx in candidates:
+        values: List[float] = []
+        for nums in numeric_rows:
+            if idx >= len(nums):
+                continue
+            number = _traffic_numeric_value(nums[idx])
+            if number is not None:
+                values.append(number)
+        if not values:
+            continue
+
+        in_range = [v for v in values if 0.0 <= v <= 120.0]
+        in_range_ratio = len(in_range) / len(values)
+        p90 = _percentile(in_range or values, 0.9)
+        score = (in_range_ratio, p90)
+        if score > best_score:
+            best_score = score
+            best_idx = idx
+
+    return best_idx
 
 
 def parse_traffic_lights_pdf(path: Path) -> List[Dict[str, object]]:
     reader = PdfReader(str(path))
-    rows: List[Dict[str, object]] = []
+    member_rows: List[Tuple[str, str, str, List[str]]] = []
+    numeric_rows: List[List[str]] = []
 
     num_re = re.compile(r"^\d[\d,]*$")
     dec_re = re.compile(r"^\d*\.\d+$")
@@ -300,7 +348,7 @@ def parse_traffic_lights_pdf(path: Path) -> List[Dict[str, object]]:
             tokens = line.split()
             num_tokens: List[str] = []
             i = len(tokens) - 1
-            while i >= 0 and len(num_tokens) < 23:
+            while i >= 0:
                 tok = tokens[i]
                 if is_num(tok):
                     num_tokens.append(tok)
@@ -308,10 +356,15 @@ def parse_traffic_lights_pdf(path: Path) -> List[Dict[str, object]]:
                 else:
                     break
 
-            if len(num_tokens) != 23:
+            if len(num_tokens) < TL_EXPECTED_NUMERIC_FIELDS:
                 continue
 
-            name_tokens = tokens[: i + 1]
+            # Keep the rightmost report metrics and ignore any extra numeric token(s)
+            # that might appear in a member name (for example business ids).
+            num_tokens = num_tokens[:TL_EXPECTED_NUMERIC_FIELDS]
+            nums = list(reversed(num_tokens))
+
+            name_tokens = tokens[: len(tokens) - TL_EXPECTED_NUMERIC_FIELDS]
             name = " ".join(name_tokens)
             if "," in name:
                 last, first = name.split(",", 1)
@@ -321,16 +374,23 @@ def parse_traffic_lights_pdf(path: Path) -> List[Dict[str, object]]:
                 last = name.strip()
                 first = ""
 
-            nums = list(reversed(num_tokens))
-            score_value = _parse_value(nums[TL_POINTS_INDEX])
-            row: Dict[str, object] = {
-                "Chapter": chapter,
-                "First Name": first,
-                "Last Name": last,
-                "Score": score_value,
-                # Keep legacy key so older normalization code remains compatible.
-                "Points": score_value,
-            }
-            rows.append(row)
+            member_rows.append((chapter, first, last, nums))
+            numeric_rows.append(nums)
+
+    points_index = _select_traffic_points_index(numeric_rows)
+    rows: List[Dict[str, object]] = []
+    for chapter, first, last, nums in member_rows:
+        if points_index >= len(nums):
+            continue
+        score_value = _parse_value(nums[points_index])
+        row: Dict[str, object] = {
+            "Chapter": chapter,
+            "First Name": first,
+            "Last Name": last,
+            "Score": score_value,
+            # Keep legacy key so older normalization code remains compatible.
+            "Points": score_value,
+        }
+        rows.append(row)
 
     return rows
