@@ -192,6 +192,36 @@ input[type="text"] {
   background: var(--accent-dark);
 }
 
+.load-button:disabled {
+  cursor: not-allowed;
+  opacity: 0.78;
+}
+
+.load-button.is-loading {
+  position: relative;
+  padding-right: 38px;
+}
+
+.load-button.is-loading::after {
+  content: "";
+  position: absolute;
+  right: 14px;
+  top: 50%;
+  width: 14px;
+  height: 14px;
+  margin-top: -7px;
+  border-radius: 999px;
+  border: 2px solid rgba(255, 255, 255, 0.35);
+  border-top-color: #fff;
+  animation: load-spin 0.8s linear infinite;
+}
+
+@keyframes load-spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
 .status {
   color: var(--muted);
   font-size: 0.9rem;

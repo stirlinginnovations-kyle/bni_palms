@@ -180,6 +180,36 @@ class SupabaseClient:
             return dict(rows[0])
         return None
 
+    def get_latest_nonempty_traffic_upload(self) -> Optional[Dict[str, Any]]:
+        member_rows = self._request(
+            "GET",
+            "/rest/v1/traffic_light_member_rows",
+            query={
+                "select": "traffic_upload_id,report_month",
+                "order": "report_month.desc,traffic_upload_id.desc",
+                "limit": "1",
+            },
+        )
+        if not isinstance(member_rows, list) or not member_rows:
+            return None
+
+        traffic_upload_id = member_rows[0].get("traffic_upload_id")
+        if traffic_upload_id is None:
+            return None
+
+        uploads = self._request(
+            "GET",
+            "/rest/v1/traffic_light_uploads",
+            query={
+                "select": "id,report_month,storage_path,uploaded_at",
+                "id": f"eq.{traffic_upload_id}",
+                "limit": "1",
+            },
+        )
+        if isinstance(uploads, list) and uploads:
+            return dict(uploads[0])
+        return None
+
     def get_traffic_rows_for_upload(
         self, *, traffic_upload_id: int, chapter_slug: str
     ) -> List[Dict[str, Any]]:

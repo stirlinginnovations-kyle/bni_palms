@@ -664,7 +664,7 @@ def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
     ytd_upload = SUPABASE.get_latest_chapter_upload(
         chapter_id=chapter_id, report_type="ytd"
     )
-    traffic_upload = SUPABASE.get_latest_traffic_upload()
+    traffic_upload = SUPABASE.get_latest_nonempty_traffic_upload()
 
     weekly_rows = _normalize_member_rows(
         SUPABASE.get_chapter_member_rows_for_upload(int(weekly_upload["id"]))
@@ -894,6 +894,15 @@ async def upload_file(
                 status_code=400,
                 detail="Unable to parse Traffic Lights PDF report.",
             ) from exc
+
+        if not rows:
+            raise HTTPException(
+                status_code=400,
+                detail=(
+                    "No traffic-light member rows were detected in this PDF. "
+                    "Upload a BNI Traffic Lights report PDF."
+                ),
+            )
 
         parsed_rows = rows
         chapters_detected = sorted(

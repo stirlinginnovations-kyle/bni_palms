@@ -37,10 +37,27 @@ const validationStore = {
   ytd: null,
   traffic: null,
 };
+const defaultLoadButtonLabel = loadButton ? loadButton.textContent : "";
+let isUploading = false;
 
 function setStatus(message, tone = "muted") {
   statusEl.textContent = message;
   statusEl.style.color = tone === "error" ? "#b23c17" : "";
+}
+
+function setUploadState(uploading, type = "") {
+  isUploading = uploading;
+  if (!loadButton) return;
+  loadButton.disabled = uploading;
+  loadButton.classList.toggle("is-loading", uploading);
+  if (uploading) {
+    loadButton.textContent =
+      type === "traffic"
+        ? "Loading Traffic Lights..."
+        : "Loading Report...";
+    return;
+  }
+  loadButton.textContent = defaultLoadButtonLabel || "Load Selected Report To Analytics";
 }
 
 function updateFileLabel(type) {
@@ -59,6 +76,9 @@ async function loadChapters() {
   try {
     const res = await fetch("/api/chapters");
     const chapters = await res.json();
+    if (!Array.isArray(chapters)) {
+      throw new Error("Chapters response was not a list.");
+    }
     chapterSelect.innerHTML = "";
     if (chapters.length === 0) {
       const opt = document.createElement("option");
@@ -295,6 +315,9 @@ function selectFile(type, file) {
 }
 
 async function uploadFile(type, file) {
+  if (isUploading) {
+    return;
+  }
   const chapter = getChapterValue();
   if (!chapter) {
     setStatus("Select or type a chapter name before uploading.", "error");
@@ -311,7 +334,12 @@ async function uploadFile(type, file) {
   formData.append("report_type", type);
   formData.append("file", file);
 
-  setStatus("Loading report to analytics...");
+  const statusMessage =
+    type === "traffic"
+      ? "Loading traffic lights report to analytics. This can take up to a minute..."
+      : "Loading report to analytics...";
+  setStatus(statusMessage);
+  setUploadState(true, type);
 
   try {
     const res = await fetch("/api/upload", {
@@ -339,6 +367,8 @@ async function uploadFile(type, file) {
     setStatus(getValidationStatusMessage(type, payload.validation || null));
   } catch (err) {
     setStatus(err.message || "Upload failed.", "error");
+  } finally {
+    setUploadState(false);
   }
 }
 
