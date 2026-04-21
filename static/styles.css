@@ -86,6 +86,30 @@ h1 {
   text-decoration-thickness: 2px;
 }
 
+.quick-tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+}
+
+.quick-tab {
+  text-decoration: none;
+  font-weight: 700;
+  font-size: 0.9rem;
+  color: #111827;
+  border: 1px solid rgba(17, 24, 39, 0.16);
+  background: rgba(255, 255, 255, 0.85);
+  border-radius: 999px;
+  padding: 8px 14px;
+  transition: background 0.2s ease, border-color 0.2s ease, color 0.2s ease;
+}
+
+.quick-tab:hover {
+  color: #fff;
+  background: var(--accent);
+  border-color: var(--accent);
+}
+
 .card {
   background: var(--card);
   border-radius: 18px;
