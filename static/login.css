@@ -57,6 +57,12 @@ body {
   gap: 14px;
 }
 
+.promo-logo {
+  width: 132px;
+  height: auto;
+  display: block;
+}
+
 .kicker {
   margin: 0;
   font-family: "Barlow Condensed", sans-serif;
@@ -200,6 +206,11 @@ body {
   cursor: pointer;
 }
 
+.submit-btn:disabled {
+  opacity: 0.72;
+  cursor: wait;
+}
+
 .message {
   margin: 0;
   border-radius: 10px;
@@ -214,6 +225,12 @@ body {
   border-color: rgba(145, 103, 11, 0.35);
   background: #fff6df;
   color: #7a5308;
+}
+
+.message.success {
+  border-color: rgba(9, 130, 75, 0.35);
+  background: #e8f8ef;
+  color: #13653f;
 }
 
 @media (max-width: 920px) {

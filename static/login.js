@@ -2,6 +2,25 @@ const loginForm = document.getElementById("loginForm");
 const loginMessage = document.getElementById("loginMessage");
 const togglePassword = document.getElementById("togglePassword");
 const passwordInput = document.getElementById("password");
+const submitBtn = document.getElementById("submitBtn");
+
+const params = new URLSearchParams(window.location.search);
+const rawNext = String(params.get("next") || "/").trim();
+const nextPath =
+  rawNext.startsWith("/") && !rawNext.startsWith("//") && !rawNext.startsWith("/api/")
+    ? rawNext
+    : "/";
+
+function setMessage(text, tone = "default") {
+  loginMessage.textContent = text;
+  loginMessage.classList.remove("warning", "success");
+  if (tone === "warning") {
+    loginMessage.classList.add("warning");
+  }
+  if (tone === "success") {
+    loginMessage.classList.add("success");
+  }
+}
 
 togglePassword.addEventListener("click", () => {
   const nextType = passwordInput.type === "password" ? "text" : "password";
@@ -9,20 +28,40 @@ togglePassword.addEventListener("click", () => {
   togglePassword.textContent = nextType === "password" ? "Show" : "Hide";
 });
 
-loginForm.addEventListener("submit", (event) => {
+loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
-
-  const formData = new FormData(loginForm);
-  const email = String(formData.get("email") || "").trim();
-  const password = String(formData.get("password") || "").trim();
-
-  if (!email || !password) {
-    loginMessage.textContent = "Enter both email and password to preview this flow.";
-    loginMessage.classList.add("warning");
+  const password = String(passwordInput.value || "").trim();
+  if (!password) {
+    setMessage("Enter your password or PIN.", "warning");
     return;
   }
 
-  loginMessage.textContent =
-    "Login is staged but intentionally disabled. Auth + paywall checks will be wired in a future release.";
-  loginMessage.classList.add("warning");
+  submitBtn.disabled = true;
+  submitBtn.textContent = "Signing In...";
+  setMessage("Checking access...", "default");
+
+  try {
+    const response = await fetch("/api/login", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({ password, next: nextPath }),
+    });
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || "Unable to sign in.");
+    }
+
+    setMessage("Access granted. Redirecting...", "success");
+    const target =
+      typeof payload.next === "string" && payload.next.startsWith("/")
+        ? payload.next
+        : nextPath;
+    window.location.assign(target || "/");
+  } catch (error) {
+    setMessage(error.message || "Unable to sign in.", "warning");
+    submitBtn.disabled = false;
+    submitBtn.textContent = "Sign In";
+  }
 });

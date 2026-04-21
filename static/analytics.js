@@ -15,6 +15,11 @@ const trafficLegend = document.getElementById("trafficLegend");
 const ytdTableBody = document.getElementById("ytdTableBody");
 const clubMembers = document.getElementById("clubMembers");
 
+function redirectToLogin() {
+  const next = encodeURIComponent(window.location.pathname);
+  window.location.assign(`/login?next=${next}`);
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString();
 }
@@ -219,6 +224,10 @@ async function loadAnalytics(chapter) {
   metaText.textContent = "Loading analytics...";
   try {
     const response = await fetch(`/api/analytics?chapter=${encodeURIComponent(chapter)}`);
+    if (response.status === 401) {
+      redirectToLogin();
+      return;
+    }
     const payload = await response.json().catch(() => ({}));
     if (!response.ok) {
       throw new Error(payload.detail || "Unable to load analytics.");
@@ -231,7 +240,18 @@ async function loadAnalytics(chapter) {
 
 async function loadChapters() {
   const response = await fetch("/api/chapters");
-  const chapters = await response.json();
+  if (response.status === 401) {
+    redirectToLogin();
+    return;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.detail || "Unable to load chapters.");
+  }
+  if (!Array.isArray(payload)) {
+    throw new Error("Invalid chapter response.");
+  }
+  const chapters = payload;
 
   chapterSelect.innerHTML = "";
   if (!chapters.length) {

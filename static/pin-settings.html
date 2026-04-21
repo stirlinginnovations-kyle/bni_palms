@@ -1,0 +1,100 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>BNI Chapter PIN Settings</title>
+    <link rel="stylesheet" href="/static/pin-settings.css?v=20260421_pinmgr" />
+  </head>
+  <body>
+    <main class="pin-page">
+      <section class="pin-shell">
+        <header class="pin-header">
+          <img class="bni-logo" src="/static/bni-logo.svg" alt="BNI logo" />
+          <div class="header-copy">
+            <p class="kicker">BNI PALMS</p>
+            <h1>Change Chapter Upload PIN</h1>
+            <p>
+              Confirm the current PIN first, then set a new numeric PIN for the selected chapter.
+            </p>
+            <div class="header-links">
+              <a href="/">Upload Center</a>
+              <a href="/analytics">Analytics</a>
+            </div>
+          </div>
+        </header>
+
+        <form id="pinForm" class="pin-form">
+          <div class="field">
+            <label for="chapterSelect">Chapter</label>
+            <div class="chapter-row">
+              <select id="chapterSelect"></select>
+              <input
+                id="chapterCustom"
+                type="text"
+                placeholder="Or type chapter name"
+              />
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="currentPin">Current PIN</label>
+            <div class="pin-row">
+              <input
+                id="currentPin"
+                type="password"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                placeholder="Enter current chapter PIN"
+                required
+              />
+              <button type="button" class="toggle-btn" data-toggle-target="currentPin">
+                Show
+              </button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="newPin">New PIN</label>
+            <div class="pin-row">
+              <input
+                id="newPin"
+                type="password"
+                inputmode="numeric"
+                autocomplete="new-password"
+                placeholder="Enter new chapter PIN"
+                required
+              />
+              <button type="button" class="toggle-btn" data-toggle-target="newPin">
+                Show
+              </button>
+            </div>
+          </div>
+
+          <div class="field">
+            <label for="confirmNewPin">Confirm New PIN</label>
+            <div class="pin-row">
+              <input
+                id="confirmNewPin"
+                type="password"
+                inputmode="numeric"
+                autocomplete="new-password"
+                placeholder="Confirm new chapter PIN"
+                required
+              />
+              <button type="button" class="toggle-btn" data-toggle-target="confirmNewPin">
+                Show
+              </button>
+            </div>
+            <p class="hint">PIN must be numeric.</p>
+          </div>
+
+          <button id="savePinButton" type="submit" class="save-btn">Save New PIN</button>
+          <p id="pinMessage" class="message">Enter chapter and PIN details to continue.</p>
+        </form>
+      </section>
+    </main>
+
+    <script src="/static/pin-settings.js?v=20260421_pinmgr"></script>
+  </body>
+</html>

@@ -8,17 +8,6 @@ const fileDrop = document.getElementById("fileDrop");
 const statusEl = document.getElementById("status");
 const loadButton = document.getElementById("loadButton");
 const uploadList = document.getElementById("uploadList");
-const validationEls = {
-  weekly: document.getElementById("weeklyValidation"),
-  ytd: document.getElementById("ytdValidation"),
-  traffic: document.getElementById("trafficValidation"),
-};
-
-const fileLabels = {
-  weekly: document.getElementById("weeklyName"),
-  ytd: document.getElementById("ytdName"),
-  traffic: document.getElementById("trafficName"),
-};
 
 const selectedStore = {
   weekly: null,
@@ -26,23 +15,42 @@ const selectedStore = {
   traffic: null,
 };
 
-const fileStore = {
-  weekly: null,
-  ytd: null,
-  traffic: null,
+const typeLabels = {
+  weekly: "Weekly Report (.xls/.xlsx)",
+  ytd: "YTD Report (.xls/.xlsx)",
+  traffic: "Traffic Lights (.pdf)",
 };
 
-const validationStore = {
-  weekly: null,
-  ytd: null,
-  traffic: null,
+const typeSummaryLabels = {
+  weekly: "Weekly",
+  ytd: "YTD",
+  traffic: "Traffic Lights",
 };
+
 const defaultLoadButtonLabel = loadButton ? loadButton.textContent : "";
 let isUploading = false;
 
 function setStatus(message, tone = "muted") {
   statusEl.textContent = message;
   statusEl.style.color = tone === "error" ? "#b23c17" : "";
+}
+
+function setEmptySummaryState() {
+  if (!uploadList || uploadList.children.length > 0) return;
+  const item = document.createElement("li");
+  item.className = "summary-empty";
+  item.textContent = "No files loaded yet.";
+  uploadList.appendChild(item);
+}
+
+function clearEmptySummaryState() {
+  const empty = uploadList.querySelector(".summary-empty");
+  if (empty) empty.remove();
+}
+
+function redirectToLogin() {
+  const next = encodeURIComponent(window.location.pathname);
+  window.location.assign(`/login?next=${next}`);
 }
 
 function setUploadState(uploading, type = "") {
@@ -52,18 +60,11 @@ function setUploadState(uploading, type = "") {
   loadButton.classList.toggle("is-loading", uploading);
   if (uploading) {
     loadButton.textContent =
-      type === "traffic"
-        ? "Loading Traffic Lights..."
-        : "Loading Report...";
+      type === "traffic" ? "Loading Traffic Lights..." : "Loading Report...";
     return;
   }
-  loadButton.textContent = defaultLoadButtonLabel || "Load Selected Report To Analytics";
-}
-
-function updateFileLabel(type) {
-  const label = fileLabels[type];
-  if (!label) return;
-  label.textContent = fileStore[type] ? fileStore[type].name : "Not uploaded";
+  loadButton.textContent =
+    defaultLoadButtonLabel || "Load Selected Report To Analytics";
 }
 
 function getChapterValue() {
@@ -75,19 +76,26 @@ function getChapterValue() {
 async function loadChapters() {
   try {
     const res = await fetch("/api/chapters");
-    const chapters = await res.json();
-    if (!Array.isArray(chapters)) {
+    if (res.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    const payload = await res.json().catch(() => ({}));
+    if (!res.ok) {
+      throw new Error(payload.detail || "Unable to load chapters.");
+    }
+    if (!Array.isArray(payload)) {
       throw new Error("Chapters response was not a list.");
     }
     chapterSelect.innerHTML = "";
-    if (chapters.length === 0) {
+    if (payload.length === 0) {
       const opt = document.createElement("option");
       opt.value = "";
       opt.textContent = "No chapters loaded";
       chapterSelect.appendChild(opt);
       return;
     }
-    chapters.forEach((chapter) => {
+    payload.forEach((chapter) => {
       const opt = document.createElement("option");
       opt.value = chapter;
       opt.textContent = chapter;
@@ -99,9 +107,11 @@ async function loadChapters() {
 }
 
 function getTypeLabel(type) {
-  if (type === "weekly") return "Weekly Report (.xls/.xlsx)";
-  if (type === "ytd") return "YTD Report (.xls/.xlsx)";
-  return "Traffic Lights (.pdf)";
+  return typeLabels[type] || typeLabels.traffic;
+}
+
+function getTypeSummaryLabel(type) {
+  return typeSummaryLabels[type] || typeSummaryLabels.traffic;
 }
 
 function updateDropMeta() {
@@ -112,181 +122,13 @@ function updateDropMeta() {
   fileInput.accept = type === "traffic" ? ".pdf" : ".xls,.xlsx";
 }
 
-function addUploadLog(type, fileName) {
+function addUploadLog(type, fileName, chapter) {
+  clearEmptySummaryState();
   const timestamp = new Date().toLocaleString();
   const item = document.createElement("li");
-  item.textContent = `${timestamp} • ${getTypeLabel(type)} • ${fileName}`;
+  item.className = "summary-item";
+  item.textContent = `${getTypeSummaryLabel(type)} • ${chapter} • ${fileName} • ${timestamp}`;
   uploadList.prepend(item);
-}
-
-function appendValidationRow(container, label, value) {
-  const row = document.createElement("div");
-  row.className = "validation-row";
-
-  const labelEl = document.createElement("div");
-  labelEl.className = "validation-label";
-  labelEl.textContent = label;
-
-  const valueEl = document.createElement("div");
-  valueEl.className = "validation-value";
-  valueEl.textContent = value ?? "N/A";
-
-  row.appendChild(labelEl);
-  row.appendChild(valueEl);
-  container.appendChild(row);
-}
-
-function appendValidationList(container, label, values) {
-  if (!Array.isArray(values) || values.length === 0) return;
-
-  const row = document.createElement("div");
-  row.className = "validation-row";
-
-  const labelEl = document.createElement("div");
-  labelEl.className = "validation-label";
-  labelEl.textContent = label;
-
-  const list = document.createElement("ul");
-  list.className = "validation-list";
-  values.forEach((value) => {
-    const item = document.createElement("li");
-    item.textContent = String(value);
-    list.appendChild(item);
-  });
-
-  row.appendChild(labelEl);
-  row.appendChild(list);
-  container.appendChild(row);
-}
-
-function formatReferralTally(validation) {
-  const tally = validation?.referral_tally;
-  if (!tally || typeof tally !== "object") return "";
-  const columns = Array.isArray(validation?.referral_columns)
-    ? validation.referral_columns
-    : Object.keys(tally);
-  return columns
-    .filter((col) => col in tally)
-    .map((col) => `${col} ${tally[col] ?? 0}`)
-    .join(", ");
-}
-
-function renderValidation(type) {
-  const container = validationEls[type];
-  if (!container) return;
-
-  container.innerHTML = "";
-  const state = validationStore[type];
-  if (!state) {
-    const empty = document.createElement("div");
-    empty.className = "validation-empty";
-    empty.textContent = "No report loaded yet.";
-    container.appendChild(empty);
-    return;
-  }
-
-  appendValidationRow(container, "File", state.fileName);
-  appendValidationRow(container, "Chapter", state.chapter);
-  appendValidationRow(container, "Uploaded", state.uploadedAt);
-
-  const validation = state.validation;
-  if (!validation) {
-    appendValidationRow(container, "Validation", "No parsed details returned.");
-    return;
-  }
-
-  appendValidationRow(container, "Rows Parsed", String(validation.rows_parsed ?? 0));
-
-  if (validation.table_start_row !== undefined) {
-    appendValidationRow(
-      container,
-      "Table Starts",
-      `Row ${String(validation.table_start_row)}`,
-    );
-  }
-
-  if (validation.referral_tally) {
-    const tallyText = formatReferralTally(validation);
-    appendValidationRow(
-      container,
-      "Referral Tally",
-      tallyText || "N/A",
-    );
-  }
-
-  if (validation.referrals_total !== undefined) {
-    appendValidationRow(
-      container,
-      "Referrals Total",
-      String(validation.referrals_total),
-    );
-  }
-
-  if (
-    Array.isArray(validation.key_metrics_summary) &&
-    validation.key_metrics_summary.length
-  ) {
-    validation.key_metrics_summary.forEach((metric) => {
-      appendValidationRow(
-        container,
-        String(metric.label || "Metric"),
-        String(metric.value ?? 0),
-      );
-    });
-  }
-
-  if (validation.chapters_detected_count !== undefined) {
-    appendValidationRow(
-      container,
-      "Chapters Detected",
-      String(validation.chapters_detected_count),
-    );
-  }
-
-  if (validation.score_average !== undefined) {
-    appendValidationRow(container, "Score Avg", String(validation.score_average));
-  }
-
-  if (validation.score_max !== undefined) {
-    appendValidationRow(container, "Score Max", String(validation.score_max));
-  }
-
-  appendValidationList(container, "Sample Members", validation.sample_members || []);
-  appendValidationList(
-    container,
-    `Columns Loaded (${(validation.columns_loaded || []).length})`,
-    validation.columns_loaded || [],
-  );
-  appendValidationList(
-    container,
-    "Detected Chapters",
-    validation.chapters_detected || [],
-  );
-}
-
-function getValidationStatusMessage(type, validation) {
-  if (!validation) return "Upload complete.";
-
-  const parts = [
-    `Loaded to analytics. Rows parsed: ${validation.rows_parsed ?? 0}.`,
-  ];
-  if (validation.referrals_total !== undefined) {
-    parts.push(`Referrals total: ${validation.referrals_total}.`);
-  }
-  if ((type === "weekly" || type === "ytd") && validation.referral_tally) {
-    const tallyText = formatReferralTally(validation);
-    if (tallyText) parts.push(`${tallyText}.`);
-  }
-  if (type === "traffic" && validation.chapters_detected_count !== undefined) {
-    parts.push(`Chapters detected: ${validation.chapters_detected_count}.`);
-  }
-  if (type === "traffic" && validation.score_average !== undefined) {
-    parts.push(`Score avg: ${validation.score_average}.`);
-  }
-  if (type === "traffic" && validation.score_max !== undefined) {
-    parts.push(`Score max: ${validation.score_max}.`);
-  }
-  return parts.join(" ");
 }
 
 function validateSelectedFile(type, file) {
@@ -310,35 +152,36 @@ function selectFile(type, file) {
   selectedStore[type] = file;
   updateDropMeta();
   setStatus(
-    `${getTypeLabel(type)} selected. Click "Load Selected Report To Analytics" to upload.`,
+    `${getTypeLabel(type)} selected. Click "Load Selected Report To Analytics" and enter the chapter PIN.`,
   );
 }
 
-async function uploadFile(type, file) {
-  if (isUploading) {
-    return;
-  }
+async function uploadFile(type, file, chapterPin) {
+  if (isUploading) return;
+
   const chapter = getChapterValue();
   if (!chapter) {
     setStatus("Select or type a chapter name before uploading.", "error");
     return;
   }
-  if (!file) return;
-
-  if (!validateSelectedFile(type, file)) {
+  if (!chapterPin) {
+    setStatus("Chapter PIN is required to upload.", "error");
     return;
   }
+  if (!file) return;
+  if (!validateSelectedFile(type, file)) return;
 
   const formData = new FormData();
   formData.append("chapter", chapter);
   formData.append("report_type", type);
+  formData.append("chapter_pin", chapterPin);
   formData.append("file", file);
 
-  const statusMessage =
+  setStatus(
     type === "traffic"
       ? "Loading traffic lights report to analytics. This can take up to a minute..."
-      : "Loading report to analytics...";
-  setStatus(statusMessage);
+      : "Loading report to analytics...",
+  );
   setUploadState(true, type);
 
   try {
@@ -346,25 +189,19 @@ async function uploadFile(type, file) {
       method: "POST",
       body: formData,
     });
+    if (res.status === 401) {
+      redirectToLogin();
+      return;
+    }
     const payload = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(payload.detail || "Upload failed");
     }
 
-    fileStore[type] = file;
     selectedStore[type] = null;
-    updateFileLabel(type);
     updateDropMeta();
-    addUploadLog(type, file.name);
-
-    validationStore[type] = {
-      fileName: file.name,
-      chapter,
-      uploadedAt: new Date().toLocaleString(),
-      validation: payload.validation || null,
-    };
-    renderValidation(type);
-    setStatus(getValidationStatusMessage(type, payload.validation || null));
+    addUploadLog(type, file.name, chapter);
+    setStatus(`${getTypeSummaryLabel(type)} loaded to analytics.`);
   } catch (err) {
     setStatus(err.message || "Upload failed.", "error");
   } finally {
@@ -384,14 +221,11 @@ function attachDropZone() {
     event.preventDefault();
     fileDrop.classList.remove("dragging");
     if (!event.dataTransfer.files.length) return;
-    const file = event.dataTransfer.files[0];
-    const type = reportType.value;
-    selectFile(type, file);
+    selectFile(reportType.value, event.dataTransfer.files[0]);
   });
   fileInput.addEventListener("change", () => {
     if (!fileInput.files.length) return;
-    const type = reportType.value;
-    selectFile(type, fileInput.files[0]);
+    selectFile(reportType.value, fileInput.files[0]);
     fileInput.value = "";
   });
   reportType.addEventListener("change", updateDropMeta);
@@ -402,13 +236,28 @@ function attachDropZone() {
       setStatus(`Select a ${getTypeLabel(type)} file first.`, "error");
       return;
     }
-    uploadFile(type, file);
+
+    const chapter = getChapterValue();
+    if (!chapter) {
+      setStatus("Select or type a chapter name before uploading.", "error");
+      return;
+    }
+
+    const chapterPin = window.prompt(`Enter upload PIN for "${chapter}":`);
+    if (chapterPin === null) {
+      setStatus("Upload canceled. PIN entry is required.");
+      return;
+    }
+    if (!chapterPin.trim()) {
+      setStatus("Chapter PIN is required to upload.", "error");
+      return;
+    }
+
+    uploadFile(type, file, chapterPin.trim());
   });
 }
 
 loadChapters();
 updateDropMeta();
 attachDropZone();
-renderValidation("weekly");
-renderValidation("ytd");
-renderValidation("traffic");
+setEmptySummaryState();

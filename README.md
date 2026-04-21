@@ -20,9 +20,56 @@ Then open `http://127.0.0.1:8000`.
 Analytics page:
 - `http://127.0.0.1:8000/analytics`
 
-Login page (staged, not enforced yet):
+Login page:
 - `http://127.0.0.1:8000/login`
-- Currently UI-only for upcoming auth/paywall rollout.
+
+Chapter PIN settings page:
+- `http://127.0.0.1:8000/pin-settings`
+
+## Access login (password/PIN)
+The app now requires login access for:
+- Upload page: `/`
+- Analytics page: `/analytics`
+- API endpoints used by those pages (`/api/chapters`, `/api/analytics`, `/api/upload`, `/api/process`)
+
+Configure one or more passwords/PINs with env vars:
+
+```bash
+set APP_AUTH_PASSWORDS=1234,my-shared-password
+```
+
+Optional alternatives:
+- `APP_AUTH_PASSWORD` (single password)
+- `APP_AUTH_PIN` (single PIN)
+
+Session/auth options:
+
+```bash
+set APP_AUTH_SESSION_SECRET=change-this-secret
+set APP_AUTH_SESSION_SECONDS=43200
+set APP_AUTH_COOKIE_SECURE=0
+```
+
+If no auth password env var is set, a local default password is used:
+- `bni-palms`
+
+## Chapter upload PINs
+- Uploads now require a chapter PIN after clicking `Load Selected Report To Analytics`.
+- Default PIN for all chapters is `12345` unless overridden.
+- Change a chapter PIN in the app at `/pin-settings` by entering:
+  - chapter
+  - current PIN
+  - new PIN
+  - confirm new PIN
+- Changed chapter PINs are saved in local file `chapter_pins.json`.
+
+Optional env configuration:
+
+```bash
+set APP_DEFAULT_CHAPTER_UPLOAD_PIN=12345
+set APP_CHAPTER_UPLOAD_PINS={\"st_charles\":\"67890\"}
+set APP_CHAPTER_PIN_MIN_LENGTH=4
+```
 
 ## Supabase runtime config
 To persist uploads to Supabase (storage + tables), set:

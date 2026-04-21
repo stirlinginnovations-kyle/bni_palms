@@ -1,14 +1,14 @@
 @import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;600;700;800&family=Oswald:wght@500;700&display=swap");
 
 :root {
-  --bg: #e5e7eb;
-  --panel-bg: #1d2129;
-  --panel-bg-soft: #282f3d;
+  --bg: #eff2f7;
+  --panel-bg: #171d27;
+  --panel-bg-soft: #232b38;
   --panel-border: rgba(255, 255, 255, 0.12);
   --text: #f5f7fb;
-  --muted: #b2bdcf;
-  --accent: #f3c623;
-  --card-bg: #2b3140;
+  --muted: #b7c1d2;
+  --accent: #ce1238;
+  --card-bg: #2a3342;
 }
 
 *,
@@ -21,45 +21,42 @@ body {
   margin: 0;
   min-height: 100vh;
   font-family: "Manrope", "Segoe UI", sans-serif;
-  background: var(--bg);
+  background:
+    radial-gradient(1000px 500px at -10% -22%, #e7ebf3 0%, transparent 55%),
+    radial-gradient(780px 360px at 112% 110%, #ecf0f6 0%, transparent 55%),
+    var(--bg);
   color: var(--text);
 }
 
 .analytics-page {
-  max-width: 1160px;
+  max-width: 1180px;
   margin: 0 auto;
-  padding: 28px 18px 40px;
+  padding: 24px 18px 34px;
 }
 
 .analytics-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
   gap: 18px;
-  margin-bottom: 14px;
+  margin-bottom: 12px;
 }
 
 .brand-block {
   display: flex;
   align-items: center;
-  gap: 14px;
+  gap: 12px;
 }
 
-.brand-tag {
-  font-family: "Oswald", sans-serif;
-  font-size: 2rem;
-  line-height: 1;
-  letter-spacing: 0.08em;
-  color: #ffffff;
-  background: linear-gradient(140deg, #dd1b2c, #921925);
-  border-radius: 8px;
-  padding: 10px 14px;
-  box-shadow: 0 8px 20px rgba(146, 25, 37, 0.45);
+.bni-logo {
+  width: 124px;
+  height: auto;
+  display: block;
 }
 
 .brand-subtitle {
   margin: 0;
-  color: #374151;
+  color: #475569;
   font-weight: 700;
   letter-spacing: 0.02em;
 }
@@ -72,20 +69,20 @@ h1 {
 
 .upload-link {
   text-decoration: none;
-  color: #0f172a;
+  color: #111827;
   border: 1px solid rgba(15, 23, 42, 0.2);
   border-radius: 999px;
   padding: 8px 14px;
   font-weight: 700;
-  background: rgba(255, 255, 255, 0.7);
+  background: rgba(255, 255, 255, 0.82);
 }
 
 .analytics-shell {
-  border: 1px solid rgba(17, 24, 39, 0.08);
-  border-radius: 14px;
+  border: 1px solid rgba(17, 24, 39, 0.1);
+  border-radius: 16px;
   overflow: hidden;
-  background: linear-gradient(130deg, #1b2028, #202632 45%, #1f2430);
-  box-shadow: 0 12px 32px rgba(17, 24, 39, 0.22);
+  background: linear-gradient(130deg, #181e28, #202734 48%, #1d2430);
+  box-shadow: 0 14px 34px rgba(17, 24, 39, 0.22);
 }
 
 .toolbar {
@@ -93,7 +90,7 @@ h1 {
   grid-template-columns: auto minmax(240px, 350px) 1fr;
   align-items: center;
   gap: 12px;
-  padding: 14px 18px;
+  padding: 14px 18px 12px;
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -121,7 +118,7 @@ h1 {
 }
 
 .weekly-cards {
-  padding: 16px 18px;
+  padding: 14px 18px 16px;
   border-bottom: 1px solid var(--panel-border);
 }
 
@@ -139,7 +136,7 @@ h1 {
 .metric-card {
   background: var(--card-bg);
   border: 1px solid var(--panel-border);
-  border-radius: 8px;
+  border-radius: 10px;
   padding: 10px;
 }
 
@@ -167,7 +164,7 @@ h1 {
 .panel {
   border-top: 1px solid var(--panel-border);
   border-right: 1px solid var(--panel-border);
-  padding: 14px 16px;
+  padding: 14px 16px 16px;
   min-height: 286px;
 }
 
@@ -213,11 +210,11 @@ h1 {
 }
 
 .bar.current {
-  background: #f4c417;
+  background: #f1bd1e;
 }
 
 .bar.goal {
-  background: #f44336;
+  background: #d74a57;
 }
 
 .bar-label {
@@ -380,6 +377,10 @@ th {
   .analytics-header {
     flex-direction: column;
     align-items: flex-start;
+  }
+
+  .bni-logo {
+    width: 108px;
   }
 
   .toolbar {

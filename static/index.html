@@ -4,19 +4,26 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>BNI PALMS Report Builder</title>
-    <link rel="stylesheet" href="/static/styles.css?v=20260421" />
+    <link rel="stylesheet" href="/static/styles.css?v=20260421_summary" />
   </head>
   <body>
     <main class="page">
       <header class="hero">
-        <p class="eyebrow">BNI PALMS</p>
-        <h1>Upload chapter reports in seconds.</h1>
+        <div class="hero-brand">
+          <img class="bni-logo" src="/static/bni-logo.svg" alt="BNI logo" />
+          <div class="hero-copy">
+            <p class="eyebrow">BNI PALMS</p>
+            <h1>Upload chapter reports in seconds.</h1>
+          </div>
+        </div>
         <p class="subtitle">
           Choose a chapter, select the report type, and drop the file. We’ll store
           it for analytics later.
         </p>
         <p class="subtitle">
           <a href="/analytics">Open Analytics Dashboard</a>
+          &nbsp;&nbsp;|&nbsp;&nbsp;
+          <a href="/pin-settings">Change Chapter PIN</a>
         </p>
       </header>
 
@@ -55,59 +62,18 @@
           </button>
         </div>
 
-        <div class="file-list">
-          <div class="file-item">
-            <span>Weekly:</span>
-            <strong id="weeklyName">Not uploaded</strong>
-          </div>
-          <div class="file-item">
-            <span>YTD:</span>
-            <strong id="ytdName">Not uploaded</strong>
-          </div>
-          <div class="file-item">
-            <span>Traffic Lights:</span>
-            <strong id="trafficName">Not uploaded</strong>
-          </div>
-        </div>
-
         <div class="status-row">
           <div id="status" class="status"></div>
         </div>
 
         <div class="upload-log">
-          <div class="upload-title">Uploaded Files</div>
+          <div class="upload-title">Load Summary</div>
+          <p class="upload-subtitle">Recent files loaded to analytics.</p>
           <ul id="uploadList"></ul>
         </div>
-
-        <section class="validation-review">
-          <div class="upload-title">Validation Review</div>
-          <p class="validation-subtitle">
-            Review what each report upload contains before processing.
-          </p>
-          <div class="validation-grid">
-            <article class="validation-card">
-              <h3>Weekly Report</h3>
-              <div id="weeklyValidation" class="validation-content">
-                No report loaded yet.
-              </div>
-            </article>
-            <article class="validation-card">
-              <h3>YTD Report</h3>
-              <div id="ytdValidation" class="validation-content">
-                No report loaded yet.
-              </div>
-            </article>
-            <article class="validation-card">
-              <h3>Traffic Lights</h3>
-              <div id="trafficValidation" class="validation-content">
-                No report loaded yet.
-              </div>
-            </article>
-          </div>
-        </section>
       </section>
     </main>
 
-    <script src="/static/app.js?v=20260421"></script>
+    <script src="/static/app.js?v=20260421_pin"></script>
   </body>
 </html>

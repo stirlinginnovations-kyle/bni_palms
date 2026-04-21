@@ -1,15 +1,21 @@
 import json
+import hashlib
+import hmac
+import os
 import re
+import time
 from datetime import datetime
 from io import BytesIO
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Dict, Iterable, List, Optional
+from urllib.parse import quote
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
-from fastapi.responses import FileResponse, StreamingResponse
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Request, UploadFile
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse, StreamingResponse
 from fastapi.staticfiles import StaticFiles
 from openpyxl import Workbook
+from pydantic import BaseModel
 
 from .merge import member_key, merge_reports
 from .parsers import (
@@ -26,6 +32,7 @@ APP_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = APP_ROOT / "static"
 CHAPTERS_FILE = APP_ROOT / "chapters.json"
 UPLOADS_DIR = APP_ROOT / "uploads"
+CHAPTER_PINS_FILE = APP_ROOT / "chapter_pins.json"
 SUPABASE = SupabaseClient.from_env()
 SUPABASE_REQUIRED_DETAIL = (
     "Supabase is required for uploads and analytics. "
@@ -42,6 +49,174 @@ ANALYTICS_GOALS = {
     "ceu": 2630.0,
     "tyfcb": 2500000.0,
 }
+
+AUTH_COOKIE_NAME = "bni_palms_auth"
+AUTH_COOKIE_MAX_AGE_SECONDS = max(
+    300,
+    int(os.getenv("APP_AUTH_SESSION_SECONDS", "43200")),
+)
+AUTH_DEFAULT_PASSWORD = "bni-palms"
+AUTH_SESSION_SECRET = (
+    os.getenv("APP_AUTH_SESSION_SECRET", "").strip()
+    or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
+    or "bni-palms-local-session"
+)
+AUTH_COOKIE_SECURE = os.getenv("APP_AUTH_COOKIE_SECURE", "0").strip().lower() in {
+    "1",
+    "true",
+    "yes",
+}
+DEFAULT_CHAPTER_UPLOAD_PIN = (
+    os.getenv("APP_DEFAULT_CHAPTER_UPLOAD_PIN", "12345").strip() or "12345"
+)
+CHAPTER_PIN_MIN_LENGTH = max(
+    1,
+    int((os.getenv("APP_CHAPTER_PIN_MIN_LENGTH", "4") or "4").strip() or "4"),
+)
+CHAPTER_PIN_MAX_LENGTH = max(CHAPTER_PIN_MIN_LENGTH, 32)
+CHAPTER_PIN_PATTERN = re.compile(r"^\d+$")
+
+
+def _configured_chapter_upload_pins() -> Dict[str, str]:
+    raw_json = os.getenv("APP_CHAPTER_UPLOAD_PINS", "").strip()
+    if not raw_json:
+        return {}
+    try:
+        parsed = json.loads(raw_json)
+    except json.JSONDecodeError:
+        return {}
+    if not isinstance(parsed, dict):
+        return {}
+
+    chapter_pins: Dict[str, str] = {}
+    for chapter_name, pin_value in parsed.items():
+        chapter_key = slugify(str(chapter_name))
+        pin_text = str(pin_value or "").strip()
+        if chapter_key and pin_text:
+            chapter_pins[chapter_key] = pin_text
+    return chapter_pins
+
+
+class LoginPayload(BaseModel):
+    password: str
+    next: Optional[str] = None
+
+
+class ChapterPinChangePayload(BaseModel):
+    chapter: str
+    current_pin: str
+    new_pin: str
+    confirm_new_pin: str
+
+
+def _configured_auth_passwords() -> List[str]:
+    passwords: List[str] = []
+    csv_value = (
+        os.getenv("APP_AUTH_PASSWORDS", "").strip()
+        or os.getenv("BNI_AUTH_PASSWORDS", "").strip()
+    )
+    if csv_value:
+        passwords.extend([value.strip() for value in csv_value.split(",") if value.strip()])
+
+    single_value = (
+        os.getenv("APP_AUTH_PASSWORD", "").strip()
+        or os.getenv("APP_AUTH_PIN", "").strip()
+    )
+    if single_value:
+        passwords.append(single_value)
+
+    if passwords:
+        return sorted(set(passwords))
+    return [AUTH_DEFAULT_PASSWORD]
+
+
+AUTH_PASSWORDS = _configured_auth_passwords()
+
+
+def _normalize_next_path(value: Optional[str]) -> str:
+    if not value:
+        return "/"
+    value = str(value).strip()
+    if not value.startswith("/") or value.startswith("//"):
+        return "/"
+    if value.startswith("/api/"):
+        return "/"
+    return value
+
+
+def _auth_signature(payload: str) -> str:
+    return hmac.new(
+        AUTH_SESSION_SECRET.encode("utf-8"),
+        payload.encode("utf-8"),
+        hashlib.sha256,
+    ).hexdigest()
+
+
+def _build_auth_token() -> str:
+    expires_at = int(time.time()) + AUTH_COOKIE_MAX_AGE_SECONDS
+    payload = str(expires_at)
+    signature = _auth_signature(payload)
+    return f"{payload}.{signature}"
+
+
+def _is_valid_auth_token(token: Optional[str]) -> bool:
+    if not token:
+        return False
+    if "." not in token:
+        return False
+    expires_at_raw, signature = token.split(".", 1)
+    if not expires_at_raw.isdigit():
+        return False
+    expected = _auth_signature(expires_at_raw)
+    if not hmac.compare_digest(signature, expected):
+        return False
+    return int(expires_at_raw) >= int(time.time())
+
+
+def _is_authenticated(request: Request) -> bool:
+    return _is_valid_auth_token(request.cookies.get(AUTH_COOKIE_NAME))
+
+
+def _password_matches(candidate: str) -> bool:
+    candidate = (candidate or "").strip()
+    if not candidate:
+        return False
+    for configured in AUTH_PASSWORDS:
+        if hmac.compare_digest(candidate, configured):
+            return True
+    return False
+
+
+def _set_auth_cookie(response: JSONResponse) -> None:
+    response.set_cookie(
+        key=AUTH_COOKIE_NAME,
+        value=_build_auth_token(),
+        max_age=AUTH_COOKIE_MAX_AGE_SECONDS,
+        httponly=True,
+        secure=AUTH_COOKIE_SECURE,
+        samesite="lax",
+        path="/",
+    )
+
+
+def _expected_chapter_upload_pin(chapter: str) -> str:
+    chapter_key = slugify(chapter)
+    return _chapter_upload_pin_map().get(chapter_key, DEFAULT_CHAPTER_UPLOAD_PIN)
+
+
+def _page_auth_or_redirect(request: Request) -> Optional[RedirectResponse]:
+    if _is_authenticated(request):
+        return None
+    next_path = _normalize_next_path(request.url.path)
+    return RedirectResponse(
+        url=f"/login?next={quote(next_path, safe='/')}",
+        status_code=303,
+    )
+
+
+def _require_api_auth(request: Request) -> None:
+    if not _is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Login required.")
 
 
 def load_chapters_file() -> List[str]:
@@ -75,6 +250,49 @@ def slugify(value: str) -> str:
     value = strip_region_suffix(value)
     value = re.sub(r"[^a-zA-Z0-9]+", "_", value.strip())
     return value.strip("_").lower() or "unknown"
+
+
+CHAPTER_UPLOAD_PINS = _configured_chapter_upload_pins()
+
+
+def _load_saved_chapter_upload_pins() -> Dict[str, str]:
+    if not CHAPTER_PINS_FILE.exists():
+        return {}
+    try:
+        data = json.loads(CHAPTER_PINS_FILE.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return {}
+    if not isinstance(data, dict):
+        return {}
+
+    pins: Dict[str, str] = {}
+    for chapter_name, pin_value in data.items():
+        chapter_slug = slugify(str(chapter_name))
+        pin = str(pin_value or "").strip()
+        if chapter_slug and pin:
+            pins[chapter_slug] = pin
+    return pins
+
+
+def _save_chapter_upload_pins(pins: Dict[str, str]) -> None:
+    payload = {slugify(key): str(value).strip() for key, value in pins.items() if str(value).strip()}
+    CHAPTER_PINS_FILE.write_text(
+        json.dumps(payload, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+
+
+def _chapter_upload_pin_map() -> Dict[str, str]:
+    pins = dict(CHAPTER_UPLOAD_PINS)
+    pins.update(_load_saved_chapter_upload_pins())
+    return pins
+
+
+def _set_chapter_upload_pin(chapter: str, pin: str) -> None:
+    chapter_slug = slugify(chapter)
+    pins = _load_saved_chapter_upload_pins()
+    pins[chapter_slug] = pin
+    _save_chapter_upload_pins(pins)
 
 
 def load_chapters() -> List[str]:
@@ -734,23 +952,117 @@ def _load_local_analytics(chapter: str) -> Dict[str, object]:
 
 
 @app.get("/")
-def index() -> FileResponse:
+def index(request: Request):
+    guard = _page_auth_or_redirect(request)
+    if guard:
+        return guard
     return FileResponse(STATIC_DIR / "index.html")
 
 
 @app.get("/login")
-def login_page() -> FileResponse:
-    # Staged page for future paywall/auth rollout. Not enforced yet.
+def login_page(request: Request, next: Optional[str] = None):
+    if _is_authenticated(request):
+        return RedirectResponse(url=_normalize_next_path(next), status_code=303)
     return FileResponse(STATIC_DIR / "login.html")
 
 
 @app.get("/analytics")
-def analytics_page() -> FileResponse:
+def analytics_page(request: Request):
+    guard = _page_auth_or_redirect(request)
+    if guard:
+        return guard
     return FileResponse(STATIC_DIR / "analytics.html")
 
 
+@app.get("/pin-settings")
+def pin_settings_page(request: Request):
+    guard = _page_auth_or_redirect(request)
+    if guard:
+        return guard
+    return FileResponse(STATIC_DIR / "pin-settings.html")
+
+
+@app.post("/api/login")
+def api_login(payload: LoginPayload):
+    password = (payload.password or "").strip()
+    if not password:
+        raise HTTPException(status_code=400, detail="Password or PIN is required.")
+    if not _password_matches(password):
+        raise HTTPException(status_code=401, detail="Invalid password or PIN.")
+
+    response = JSONResponse(
+        {
+            "status": "ok",
+            "next": _normalize_next_path(payload.next),
+        }
+    )
+    _set_auth_cookie(response)
+    return response
+
+
+@app.post("/api/logout")
+def api_logout():
+    response = JSONResponse({"status": "ok"})
+    response.delete_cookie(key=AUTH_COOKIE_NAME, path="/")
+    return response
+
+
+@app.post("/api/chapter-pin/change")
+def change_chapter_pin(
+    payload: ChapterPinChangePayload,
+    _auth: None = Depends(_require_api_auth),
+):
+    chapter = (payload.chapter or "").strip()
+    current_pin = (payload.current_pin or "").strip()
+    new_pin = (payload.new_pin or "").strip()
+    confirm_new_pin = (payload.confirm_new_pin or "").strip()
+
+    if not chapter:
+        raise HTTPException(status_code=400, detail="Chapter is required.")
+    if not current_pin:
+        raise HTTPException(status_code=400, detail="Current PIN is required.")
+    if not new_pin:
+        raise HTTPException(status_code=400, detail="New PIN is required.")
+    if not confirm_new_pin:
+        raise HTTPException(status_code=400, detail="Confirm your new PIN.")
+    if not hmac.compare_digest(new_pin, confirm_new_pin):
+        raise HTTPException(status_code=400, detail="New PIN and confirmation do not match.")
+    if not CHAPTER_PIN_PATTERN.fullmatch(new_pin):
+        raise HTTPException(status_code=400, detail="New PIN must use numbers only.")
+    if len(new_pin) < CHAPTER_PIN_MIN_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"New PIN must be at least {CHAPTER_PIN_MIN_LENGTH} digits.",
+        )
+    if len(new_pin) > CHAPTER_PIN_MAX_LENGTH:
+        raise HTTPException(
+            status_code=400,
+            detail=f"New PIN must be at most {CHAPTER_PIN_MAX_LENGTH} digits.",
+        )
+    if hmac.compare_digest(current_pin, new_pin):
+        raise HTTPException(status_code=400, detail="New PIN must be different from current PIN.")
+
+    expected_pin = _expected_chapter_upload_pin(chapter)
+    if not hmac.compare_digest(current_pin, expected_pin):
+        raise HTTPException(status_code=403, detail="Current PIN is incorrect.")
+
+    try:
+        _set_chapter_upload_pin(chapter, new_pin)
+    except OSError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to save chapter PIN: {exc}",
+        ) from exc
+
+    return {
+        "status": "ok",
+        "chapter": chapter,
+        "chapter_slug": slugify(chapter),
+    }
+
+
 @app.get("/api/chapters")
-def chapters() -> List[str]:
+def chapters(_auth: None = Depends(_require_api_auth)) -> List[str]:
     if not SUPABASE:
         raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
     try:
@@ -761,9 +1073,8 @@ def chapters() -> List[str]:
             detail=f"Failed to load chapters from Supabase: {exc}",
         ) from exc
 
-
 @app.get("/api/analytics")
-def analytics(chapter: str) -> Dict[str, object]:
+def analytics(chapter: str, _auth: None = Depends(_require_api_auth)) -> Dict[str, object]:
     chapter = (chapter or "").strip()
     if not chapter:
         raise HTTPException(status_code=400, detail="Chapter is required.")
@@ -780,12 +1091,15 @@ def analytics(chapter: str) -> Dict[str, object]:
 
 @app.post("/api/upload")
 async def upload_file(
+    _auth: None = Depends(_require_api_auth),
     chapter: str = Form(...),
     report_type: str = Form(...),
+    chapter_pin: str = Form(...),
     file: UploadFile = File(...),
 ):
     chapter = (chapter or "").strip()
     report_type = (report_type or "").strip().lower()
+    chapter_pin = (chapter_pin or "").strip()
 
     if not chapter:
         raise HTTPException(status_code=400, detail="Chapter is required.")
@@ -794,6 +1108,11 @@ async def upload_file(
         raise HTTPException(status_code=400, detail="Invalid report type.")
     if not SUPABASE:
         raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
+    if not chapter_pin:
+        raise HTTPException(status_code=400, detail="Chapter PIN is required.")
+    expected_pin = _expected_chapter_upload_pin(chapter)
+    if not hmac.compare_digest(chapter_pin, expected_pin):
+        raise HTTPException(status_code=403, detail="Invalid chapter PIN.")
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing file.")
@@ -972,6 +1291,7 @@ async def upload_file(
 
 @app.post("/api/process")
 async def process(
+    _auth: None = Depends(_require_api_auth),
     chapter: str = Form(...),
     weekly: UploadFile = File(...),
     ytd: UploadFile = File(...),
