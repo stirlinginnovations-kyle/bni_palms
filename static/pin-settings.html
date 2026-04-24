@@ -3,8 +3,8 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>BNI Chapter PIN Settings</title>
-    <link rel="stylesheet" href="/static/pin-settings.css?v=20260421_pinmgr" />
+    <title>BNI Chapter Security Settings</title>
+    <link rel="stylesheet" href="/static/pin-settings.css?v=20260423_goals" />
   </head>
   <body>
     <main class="pin-page">
@@ -13,9 +13,9 @@
           <img class="bni-logo" src="/static/bni-logo.svg" alt="BNI logo" />
           <div class="header-copy">
             <p class="kicker">BNI PALMS</p>
-            <h1>Change Chapter Upload PIN</h1>
+            <h1>Chapter Security and Goals</h1>
             <p>
-              Confirm the current PIN first, then set a new numeric PIN for the selected chapter.
+              Manage chapter upload PIN and yearly dashboard goals from one page.
             </p>
             <div class="header-links">
               <a href="/">Upload Center</a>
@@ -24,7 +24,9 @@
           </div>
         </header>
 
-        <form id="pinForm" class="pin-form">
+        <section class="settings-card chapter-card">
+          <h2>Chapter</h2>
+          <p class="card-copy">Select a chapter before changing PIN or yearly goals.</p>
           <div class="field">
             <label for="chapterSelect">Chapter</label>
             <div class="chapter-row">
@@ -36,65 +38,131 @@
               />
             </div>
           </div>
+        </section>
 
-          <div class="field">
-            <label for="currentPin">Current PIN</label>
-            <div class="pin-row">
-              <input
-                id="currentPin"
-                type="password"
-                inputmode="numeric"
-                autocomplete="one-time-code"
-                placeholder="Enter current chapter PIN"
-                required
-              />
-              <button type="button" class="toggle-btn" data-toggle-target="currentPin">
-                Show
-              </button>
+        <section class="settings-grid">
+          <form id="pinForm" class="settings-card pin-form">
+            <h2>Change Upload PIN</h2>
+            <p class="card-copy">
+              Confirm the current PIN first, then set a new numeric chapter PIN.
+            </p>
+
+            <div class="field">
+              <label for="currentPin">Current PIN</label>
+              <div class="pin-row">
+                <input
+                  id="currentPin"
+                  type="password"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  placeholder="Enter current chapter PIN"
+                  required
+                />
+                <button type="button" class="toggle-btn" data-toggle-target="currentPin">
+                  Show
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div class="field">
-            <label for="newPin">New PIN</label>
-            <div class="pin-row">
-              <input
-                id="newPin"
-                type="password"
-                inputmode="numeric"
-                autocomplete="new-password"
-                placeholder="Enter new chapter PIN"
-                required
-              />
-              <button type="button" class="toggle-btn" data-toggle-target="newPin">
-                Show
-              </button>
+            <div class="field">
+              <label for="newPin">New PIN</label>
+              <div class="pin-row">
+                <input
+                  id="newPin"
+                  type="password"
+                  inputmode="numeric"
+                  autocomplete="new-password"
+                  placeholder="Enter new chapter PIN"
+                  required
+                />
+                <button type="button" class="toggle-btn" data-toggle-target="newPin">
+                  Show
+                </button>
+              </div>
             </div>
-          </div>
 
-          <div class="field">
-            <label for="confirmNewPin">Confirm New PIN</label>
-            <div class="pin-row">
-              <input
-                id="confirmNewPin"
-                type="password"
-                inputmode="numeric"
-                autocomplete="new-password"
-                placeholder="Confirm new chapter PIN"
-                required
-              />
-              <button type="button" class="toggle-btn" data-toggle-target="confirmNewPin">
-                Show
-              </button>
+            <div class="field">
+              <label for="confirmNewPin">Confirm New PIN</label>
+              <div class="pin-row">
+                <input
+                  id="confirmNewPin"
+                  type="password"
+                  inputmode="numeric"
+                  autocomplete="new-password"
+                  placeholder="Confirm new chapter PIN"
+                  required
+                />
+                <button type="button" class="toggle-btn" data-toggle-target="confirmNewPin">
+                  Show
+                </button>
+              </div>
+              <p class="hint">PIN must be numeric.</p>
             </div>
-            <p class="hint">PIN must be numeric.</p>
-          </div>
 
-          <button id="savePinButton" type="submit" class="save-btn">Save New PIN</button>
-          <p id="pinMessage" class="message">Enter chapter and PIN details to continue.</p>
-        </form>
+            <button id="savePinButton" type="submit" class="save-btn">Save New PIN</button>
+            <p id="pinMessage" class="message">Enter chapter and PIN details to continue.</p>
+          </form>
+
+          <form id="goalsForm" class="settings-card goals-form">
+            <h2>Update Yearly Goals</h2>
+            <p class="card-copy">
+              Use current chapter PIN to save dashboard goals for Visitors, One to Ones,
+              Referrals, CEU, and TYFCB.
+            </p>
+
+            <div class="field">
+              <label for="goalsCurrentPin">Current PIN</label>
+              <div class="pin-row">
+                <input
+                  id="goalsCurrentPin"
+                  type="password"
+                  inputmode="numeric"
+                  autocomplete="one-time-code"
+                  placeholder="Enter current chapter PIN"
+                  required
+                />
+                <button
+                  type="button"
+                  class="toggle-btn"
+                  data-toggle-target="goalsCurrentPin"
+                >
+                  Show
+                </button>
+              </div>
+            </div>
+
+            <div class="goals-grid">
+              <div class="field">
+                <label for="goalVisitors">Visitors</label>
+                <input id="goalVisitors" type="number" min="0" step="any" required />
+              </div>
+              <div class="field">
+                <label for="goalOneToOnes">One to Ones</label>
+                <input id="goalOneToOnes" type="number" min="0" step="any" required />
+              </div>
+              <div class="field">
+                <label for="goalReferrals">Referrals</label>
+                <input id="goalReferrals" type="number" min="0" step="any" required />
+              </div>
+              <div class="field">
+                <label for="goalCeu">CEU</label>
+                <input id="goalCeu" type="number" min="0" step="any" required />
+              </div>
+              <div class="field">
+                <label for="goalTyfcb">TYFCB (Closed Business)</label>
+                <input id="goalTyfcb" type="number" min="0" step="any" required />
+              </div>
+            </div>
+
+            <button id="saveGoalsButton" type="submit" class="save-btn">
+              Save Yearly Goals
+            </button>
+            <p id="goalsMessage" class="message">Select a chapter to load current goals.</p>
+          </form>
+        </section>
       </section>
     </main>
 
-    <script src="/static/pin-settings.js?v=20260421_pinmgr"></script>
+    <script src="/static/pin-settings.js?v=20260423_goals"></script>
   </body>
 </html>

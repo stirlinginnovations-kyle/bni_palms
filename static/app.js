@@ -1,5 +1,4 @@
 const chapterSelect = document.getElementById("chapterSelect");
-const chapterCustom = document.getElementById("chapterCustom");
 const reportType = document.getElementById("reportType");
 const fileInput = document.getElementById("fileInput");
 const dropTitle = document.getElementById("dropTitle");
@@ -68,8 +67,6 @@ function setUploadState(uploading, type = "") {
 }
 
 function getChapterValue() {
-  const custom = chapterCustom.value.trim();
-  if (custom) return custom;
   return chapterSelect.value.trim();
 }
 
@@ -161,7 +158,7 @@ async function uploadFile(type, file, chapterPin) {
 
   const chapter = getChapterValue();
   if (!chapter) {
-    setStatus("Select or type a chapter name before uploading.", "error");
+    setStatus("Select a chapter name before uploading.", "error");
     return;
   }
   if (!chapterPin) {
@@ -239,7 +236,7 @@ function attachDropZone() {
 
     const chapter = getChapterValue();
     if (!chapter) {
-      setStatus("Select or type a chapter name before uploading.", "error");
+      setStatus("Select a chapter name before uploading.", "error");
       return;
     }
 

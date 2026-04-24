@@ -1,5 +1,6 @@
 const chapterSelect = document.getElementById("chapterSelect");
 const chapterCustom = document.getElementById("chapterCustom");
+
 const pinForm = document.getElementById("pinForm");
 const currentPinInput = document.getElementById("currentPin");
 const newPinInput = document.getElementById("newPin");
@@ -7,19 +8,32 @@ const confirmNewPinInput = document.getElementById("confirmNewPin");
 const pinMessage = document.getElementById("pinMessage");
 const savePinButton = document.getElementById("savePinButton");
 
+const goalsForm = document.getElementById("goalsForm");
+const goalsCurrentPinInput = document.getElementById("goalsCurrentPin");
+const goalVisitorsInput = document.getElementById("goalVisitors");
+const goalOneToOnesInput = document.getElementById("goalOneToOnes");
+const goalReferralsInput = document.getElementById("goalReferrals");
+const goalCeuInput = document.getElementById("goalCeu");
+const goalTyfcbInput = document.getElementById("goalTyfcb");
+const goalsMessage = document.getElementById("goalsMessage");
+const saveGoalsButton = document.getElementById("saveGoalsButton");
+
+let goalsRequestToken = 0;
+
 function redirectToLogin() {
   const next = encodeURIComponent(window.location.pathname);
   window.location.assign(`/login?next=${next}`);
 }
 
-function setMessage(text, tone = "default") {
-  pinMessage.textContent = text;
-  pinMessage.classList.remove("warning", "success");
+function setMessage(target, text, tone = "default") {
+  if (!target) return;
+  target.textContent = text;
+  target.classList.remove("warning", "success");
   if (tone === "warning") {
-    pinMessage.classList.add("warning");
+    target.classList.add("warning");
   }
   if (tone === "success") {
-    pinMessage.classList.add("success");
+    target.classList.add("success");
   }
 }
 
@@ -50,6 +64,75 @@ function attachPinToggles() {
   });
 }
 
+function parseGoalValue(input, label) {
+  const raw = String(input.value || "").trim();
+  if (!raw) {
+    throw new Error(`${label} yearly goal is required.`);
+  }
+  const value = Number(raw);
+  if (!Number.isFinite(value)) {
+    throw new Error(`${label} yearly goal must be a number.`);
+  }
+  if (value < 0) {
+    throw new Error(`${label} yearly goal cannot be negative.`);
+  }
+  return value;
+}
+
+function setGoalInputValue(input, value) {
+  const numericValue = Number(value);
+  input.value = Number.isFinite(numericValue) ? String(numericValue) : "";
+}
+
+function renderGoals(goals) {
+  const payload = goals || {};
+  setGoalInputValue(goalVisitorsInput, payload.visitors);
+  setGoalInputValue(goalOneToOnesInput, payload.one_to_ones);
+  setGoalInputValue(goalReferralsInput, payload.referrals);
+  setGoalInputValue(goalCeuInput, payload.ceu);
+  setGoalInputValue(goalTyfcbInput, payload.tyfcb);
+}
+
+async function loadGoalsForChapter() {
+  const chapter = getChapterValue();
+  const requestToken = ++goalsRequestToken;
+  if (!chapter) {
+    renderGoals({});
+    setMessage(goalsMessage, "Select or type a chapter name to load yearly goals.");
+    return;
+  }
+
+  setMessage(goalsMessage, "Loading current yearly goals...");
+
+  try {
+    const response = await fetch(`/api/chapter-goals?chapter=${encodeURIComponent(chapter)}`);
+    if (response.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || "Unable to load chapter yearly goals.");
+    }
+    if (requestToken !== goalsRequestToken) {
+      return;
+    }
+
+    renderGoals(payload.yearly_goals || {});
+    setMessage(goalsMessage, "Current yearly goals loaded.", "success");
+  } catch (error) {
+    if (requestToken !== goalsRequestToken) {
+      return;
+    }
+    renderGoals({});
+    setMessage(
+      goalsMessage,
+      error.message || "Unable to load chapter yearly goals.",
+      "warning",
+    );
+  }
+}
+
 async function loadChapters() {
   try {
     const res = await fetch("/api/chapters");
@@ -71,16 +154,23 @@ async function loadChapters() {
       opt.value = "";
       opt.textContent = "No chapters loaded";
       chapterSelect.appendChild(opt);
+      setMessage(pinMessage, "No chapters found in Supabase.", "warning");
+      setMessage(goalsMessage, "No chapters found in Supabase.", "warning");
       return;
     }
+
     payload.forEach((chapter) => {
       const opt = document.createElement("option");
       opt.value = chapter;
       opt.textContent = chapter;
       chapterSelect.appendChild(opt);
     });
+
+    await loadGoalsForChapter();
   } catch (error) {
-    setMessage(error.message || "Unable to load chapters.", "warning");
+    const message = error.message || "Unable to load chapters.";
+    setMessage(pinMessage, message, "warning");
+    setMessage(goalsMessage, message, "warning");
   }
 }
 
@@ -93,41 +183,41 @@ pinForm.addEventListener("submit", async (event) => {
   const confirmNewPin = normalizePinInput(confirmNewPinInput.value);
 
   if (!chapter) {
-    setMessage("Select or type a chapter name first.", "warning");
+    setMessage(pinMessage, "Select or type a chapter name first.", "warning");
     return;
   }
   if (!currentPin) {
-    setMessage("Current PIN is required.", "warning");
+    setMessage(pinMessage, "Current PIN is required.", "warning");
     return;
   }
   if (!newPin) {
-    setMessage("New PIN is required.", "warning");
+    setMessage(pinMessage, "New PIN is required.", "warning");
     return;
   }
   if (!confirmNewPin) {
-    setMessage("Confirm your new PIN.", "warning");
+    setMessage(pinMessage, "Confirm your new PIN.", "warning");
     return;
   }
   if (!isNumericPin(newPin)) {
-    setMessage("New PIN must use numbers only.", "warning");
+    setMessage(pinMessage, "New PIN must use numbers only.", "warning");
     return;
   }
   if (newPin.length < 4) {
-    setMessage("New PIN must be at least 4 digits.", "warning");
+    setMessage(pinMessage, "New PIN must be at least 4 digits.", "warning");
     return;
   }
   if (newPin !== confirmNewPin) {
-    setMessage("New PIN and confirmation do not match.", "warning");
+    setMessage(pinMessage, "New PIN and confirmation do not match.", "warning");
     return;
   }
   if (newPin === currentPin) {
-    setMessage("New PIN must be different from current PIN.", "warning");
+    setMessage(pinMessage, "New PIN must be different from current PIN.", "warning");
     return;
   }
 
   savePinButton.disabled = true;
   savePinButton.textContent = "Saving PIN...";
-  setMessage("Verifying current PIN and updating chapter PIN...");
+  setMessage(pinMessage, "Verifying current PIN and updating chapter PIN...");
 
   try {
     const response = await fetch("/api/chapter-pin/change", {
@@ -154,13 +244,106 @@ pinForm.addEventListener("submit", async (event) => {
     currentPinInput.value = "";
     newPinInput.value = "";
     confirmNewPinInput.value = "";
-    setMessage("Chapter PIN updated successfully.", "success");
+    goalsCurrentPinInput.value = "";
+    setMessage(pinMessage, "Chapter PIN updated successfully.", "success");
   } catch (error) {
-    setMessage(error.message || "Unable to change chapter PIN.", "warning");
+    setMessage(pinMessage, error.message || "Unable to change chapter PIN.", "warning");
   } finally {
     savePinButton.disabled = false;
     savePinButton.textContent = "Save New PIN";
   }
+});
+
+goalsForm.addEventListener("submit", async (event) => {
+  event.preventDefault();
+
+  const chapter = getChapterValue();
+  const currentPin = normalizePinInput(goalsCurrentPinInput.value);
+  if (!chapter) {
+    setMessage(goalsMessage, "Select or type a chapter name first.", "warning");
+    return;
+  }
+  if (!currentPin) {
+    setMessage(goalsMessage, "Current PIN is required.", "warning");
+    return;
+  }
+
+  let goals;
+  try {
+    goals = {
+      visitors: parseGoalValue(goalVisitorsInput, "Visitors"),
+      one_to_ones: parseGoalValue(goalOneToOnesInput, "One to Ones"),
+      referrals: parseGoalValue(goalReferralsInput, "Referrals"),
+      ceu: parseGoalValue(goalCeuInput, "CEU"),
+      tyfcb: parseGoalValue(goalTyfcbInput, "TYFCB"),
+    };
+  } catch (error) {
+    setMessage(goalsMessage, error.message || "Invalid yearly goals.", "warning");
+    return;
+  }
+
+  saveGoalsButton.disabled = true;
+  saveGoalsButton.textContent = "Saving Goals...";
+  setMessage(goalsMessage, "Verifying PIN and saving yearly goals...");
+
+  const confirmSave = window.confirm(
+    `Save yearly goals for ${chapter}?\n\n` +
+      `Visitors: ${goals.visitors}\n` +
+      `One to Ones: ${goals.one_to_ones}\n` +
+      `Referrals: ${goals.referrals}\n` +
+      `CEU: ${goals.ceu}\n` +
+      `TYFCB: ${goals.tyfcb}`,
+  );
+  if (!confirmSave) {
+    saveGoalsButton.disabled = false;
+    saveGoalsButton.textContent = "Save Yearly Goals";
+    setMessage(goalsMessage, "Yearly goal update canceled.");
+    return;
+  }
+
+  try {
+    const response = await fetch("/api/chapter-goals/change", {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+      },
+      body: JSON.stringify({
+        chapter,
+        current_pin: currentPin,
+        ...goals,
+      }),
+    });
+    if (response.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || "Unable to save chapter yearly goals.");
+    }
+
+    renderGoals(payload.yearly_goals || goals);
+    goalsCurrentPinInput.value = "";
+    setMessage(goalsMessage, "Chapter yearly goals updated successfully.", "success");
+  } catch (error) {
+    setMessage(
+      goalsMessage,
+      error.message || "Unable to save chapter yearly goals.",
+      "warning",
+    );
+  } finally {
+    saveGoalsButton.disabled = false;
+    saveGoalsButton.textContent = "Save Yearly Goals";
+  }
+});
+
+chapterSelect.addEventListener("change", () => {
+  chapterCustom.value = "";
+  loadGoalsForChapter();
+});
+
+chapterCustom.addEventListener("change", () => {
+  loadGoalsForChapter();
 });
 
 attachPinToggles();

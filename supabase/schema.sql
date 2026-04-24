@@ -34,6 +34,36 @@ create table if not exists public.chapters (
   constraint chapters_slug_format check (slug ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$')
 );
 
+create table if not exists public.chapter_upload_pins (
+  chapter_slug text primary key,
+  chapter_name text not null,
+  chapter_pin text not null,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint chapter_upload_pins_slug_format check (chapter_slug ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'),
+  constraint chapter_upload_pins_name_not_blank check (length(trim(chapter_name)) > 0),
+  constraint chapter_upload_pins_pin_not_blank check (length(trim(chapter_pin)) > 0)
+);
+
+create table if not exists public.chapter_yearly_goals (
+  chapter_slug text primary key,
+  chapter_name text not null,
+  visitors numeric not null default 190,
+  one_to_ones numeric not null default 4400,
+  referrals numeric not null default 1550,
+  ceu numeric not null default 2630,
+  tyfcb numeric not null default 2500000,
+  created_at timestamptz not null default timezone('utc', now()),
+  updated_at timestamptz not null default timezone('utc', now()),
+  constraint chapter_yearly_goals_slug_format check (chapter_slug ~ '^[a-z0-9]+(?:_[a-z0-9]+)*$'),
+  constraint chapter_yearly_goals_name_not_blank check (length(trim(chapter_name)) > 0),
+  constraint chapter_yearly_goals_visitors_nonnegative check (visitors >= 0),
+  constraint chapter_yearly_goals_one_to_ones_nonnegative check (one_to_ones >= 0),
+  constraint chapter_yearly_goals_referrals_nonnegative check (referrals >= 0),
+  constraint chapter_yearly_goals_ceu_nonnegative check (ceu >= 0),
+  constraint chapter_yearly_goals_tyfcb_nonnegative check (tyfcb >= 0)
+);
+
 create table if not exists public.chapter_report_uploads (
   id bigint generated always as identity primary key,
   chapter_id uuid not null references public.chapters(id) on delete cascade,
@@ -153,6 +183,18 @@ before update on public.chapters
 for each row
 execute function public.set_updated_at();
 
+drop trigger if exists trg_chapter_upload_pins_updated_at on public.chapter_upload_pins;
+create trigger trg_chapter_upload_pins_updated_at
+before update on public.chapter_upload_pins
+for each row
+execute function public.set_updated_at();
+
+drop trigger if exists trg_chapter_yearly_goals_updated_at on public.chapter_yearly_goals;
+create trigger trg_chapter_yearly_goals_updated_at
+before update on public.chapter_yearly_goals
+for each row
+execute function public.set_updated_at();
+
 drop trigger if exists trg_chapter_report_current_updated_at on public.chapter_report_current;
 create trigger trg_chapter_report_current_updated_at
 before update on public.chapter_report_current
@@ -269,6 +311,8 @@ values ('chapter-reports', 'chapter-reports', false)
 on conflict (id) do nothing;
 
 alter table public.chapters enable row level security;
+alter table public.chapter_upload_pins enable row level security;
+alter table public.chapter_yearly_goals enable row level security;
 alter table public.chapter_report_uploads enable row level security;
 alter table public.chapter_report_current enable row level security;
 alter table public.traffic_light_uploads enable row level security;
@@ -285,6 +329,36 @@ using (true);
 drop policy if exists chapters_write_authenticated on public.chapters;
 create policy chapters_write_authenticated
 on public.chapters
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists chapter_upload_pins_read_authenticated on public.chapter_upload_pins;
+create policy chapter_upload_pins_read_authenticated
+on public.chapter_upload_pins
+for select
+to authenticated
+using (true);
+
+drop policy if exists chapter_upload_pins_write_authenticated on public.chapter_upload_pins;
+create policy chapter_upload_pins_write_authenticated
+on public.chapter_upload_pins
+for all
+to authenticated
+using (true)
+with check (true);
+
+drop policy if exists chapter_yearly_goals_read_authenticated on public.chapter_yearly_goals;
+create policy chapter_yearly_goals_read_authenticated
+on public.chapter_yearly_goals
+for select
+to authenticated
+using (true);
+
+drop policy if exists chapter_yearly_goals_write_authenticated on public.chapter_yearly_goals;
+create policy chapter_yearly_goals_write_authenticated
+on public.chapter_yearly_goals
 for all
 to authenticated
 using (true)

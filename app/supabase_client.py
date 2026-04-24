@@ -117,6 +117,98 @@ class SupabaseClient:
                 output.append(name)
         return output
 
+    def get_chapter_upload_pin(self, *, chapter_slug: str) -> Optional[str]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/chapter_upload_pins",
+            query={
+                "select": "chapter_pin",
+                "chapter_slug": f"eq.{chapter_slug}",
+                "limit": "1",
+            },
+        )
+        if isinstance(rows, list) and rows:
+            chapter_pin = str(rows[0].get("chapter_pin", "")).strip()
+            if chapter_pin:
+                return chapter_pin
+        return None
+
+    def upsert_chapter_upload_pin(
+        self,
+        *,
+        chapter_slug: str,
+        chapter_name: str,
+        chapter_pin: str,
+    ) -> Dict[str, Any]:
+        rows = self._request(
+            "POST",
+            "/rest/v1/chapter_upload_pins",
+            query={
+                "on_conflict": "chapter_slug",
+                "select": "chapter_slug,chapter_name,chapter_pin,updated_at",
+            },
+            json_body=[
+                {
+                    "chapter_slug": chapter_slug,
+                    "chapter_name": chapter_name,
+                    "chapter_pin": chapter_pin,
+                }
+            ],
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        raise SupabaseError("Failed to upsert chapter_upload_pins row.")
+
+    def get_chapter_yearly_goals(self, *, chapter_slug: str) -> Optional[Dict[str, Any]]:
+        rows = self._request(
+            "GET",
+            "/rest/v1/chapter_yearly_goals",
+            query={
+                "select": "chapter_slug,chapter_name,visitors,one_to_ones,referrals,ceu,tyfcb",
+                "chapter_slug": f"eq.{chapter_slug}",
+                "limit": "1",
+            },
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        return None
+
+    def upsert_chapter_yearly_goals(
+        self,
+        *,
+        chapter_slug: str,
+        chapter_name: str,
+        visitors: float,
+        one_to_ones: float,
+        referrals: float,
+        ceu: float,
+        tyfcb: float,
+    ) -> Dict[str, Any]:
+        rows = self._request(
+            "POST",
+            "/rest/v1/chapter_yearly_goals",
+            query={
+                "on_conflict": "chapter_slug",
+                "select": "chapter_slug,chapter_name,visitors,one_to_ones,referrals,ceu,tyfcb,updated_at",
+            },
+            json_body=[
+                {
+                    "chapter_slug": chapter_slug,
+                    "chapter_name": chapter_name,
+                    "visitors": visitors,
+                    "one_to_ones": one_to_ones,
+                    "referrals": referrals,
+                    "ceu": ceu,
+                    "tyfcb": tyfcb,
+                }
+            ],
+            prefer="resolution=merge-duplicates,return=representation",
+        )
+        if isinstance(rows, list) and rows:
+            return dict(rows[0])
+        raise SupabaseError("Failed to upsert chapter_yearly_goals row.")
+
     def get_chapter_by_slug(self, slug: str) -> Optional[Dict[str, Any]]:
         rows = self._request(
             "GET",

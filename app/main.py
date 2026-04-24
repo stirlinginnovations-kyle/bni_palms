@@ -32,7 +32,6 @@ APP_ROOT = Path(__file__).resolve().parent.parent
 STATIC_DIR = APP_ROOT / "static"
 CHAPTERS_FILE = APP_ROOT / "chapters.json"
 UPLOADS_DIR = APP_ROOT / "uploads"
-CHAPTER_PINS_FILE = APP_ROOT / "chapter_pins.json"
 SUPABASE = SupabaseClient.from_env()
 SUPABASE_REQUIRED_DETAIL = (
     "Supabase is required for uploads and analytics. "
@@ -55,7 +54,7 @@ AUTH_COOKIE_MAX_AGE_SECONDS = max(
     300,
     int(os.getenv("APP_AUTH_SESSION_SECONDS", "43200")),
 )
-AUTH_DEFAULT_PASSWORD = "bni-palms"
+AUTH_DEFAULT_PASSWORD = "giversgain"
 AUTH_SESSION_SECRET = (
     os.getenv("APP_AUTH_SESSION_SECRET", "").strip()
     or os.getenv("SUPABASE_SERVICE_KEY", "").strip()
@@ -107,6 +106,16 @@ class ChapterPinChangePayload(BaseModel):
     current_pin: str
     new_pin: str
     confirm_new_pin: str
+
+
+class ChapterGoalsUpdatePayload(BaseModel):
+    chapter: str
+    current_pin: str
+    visitors: float
+    one_to_ones: float
+    referrals: float
+    ceu: float
+    tyfcb: float
 
 
 def _configured_auth_passwords() -> List[str]:
@@ -201,7 +210,14 @@ def _set_auth_cookie(response: JSONResponse) -> None:
 
 def _expected_chapter_upload_pin(chapter: str) -> str:
     chapter_key = slugify(chapter)
-    return _chapter_upload_pin_map().get(chapter_key, DEFAULT_CHAPTER_UPLOAD_PIN)
+    supabase_pin: Optional[str] = None
+    if SUPABASE:
+        try:
+            supabase_pin = SUPABASE.get_chapter_upload_pin(chapter_slug=chapter_key)
+        except SupabaseError as exc:
+            if "chapter_upload_pins" not in str(exc):
+                raise
+    return supabase_pin or CHAPTER_UPLOAD_PINS.get(chapter_key) or DEFAULT_CHAPTER_UPLOAD_PIN
 
 
 def _page_auth_or_redirect(request: Request) -> Optional[RedirectResponse]:
@@ -255,44 +271,80 @@ def slugify(value: str) -> str:
 CHAPTER_UPLOAD_PINS = _configured_chapter_upload_pins()
 
 
-def _load_saved_chapter_upload_pins() -> Dict[str, str]:
-    if not CHAPTER_PINS_FILE.exists():
-        return {}
-    try:
-        data = json.loads(CHAPTER_PINS_FILE.read_text(encoding="utf-8"))
-    except (json.JSONDecodeError, OSError):
-        return {}
-    if not isinstance(data, dict):
-        return {}
-
-    pins: Dict[str, str] = {}
-    for chapter_name, pin_value in data.items():
-        chapter_slug = slugify(str(chapter_name))
-        pin = str(pin_value or "").strip()
-        if chapter_slug and pin:
-            pins[chapter_slug] = pin
-    return pins
-
-
-def _save_chapter_upload_pins(pins: Dict[str, str]) -> None:
-    payload = {slugify(key): str(value).strip() for key, value in pins.items() if str(value).strip()}
-    CHAPTER_PINS_FILE.write_text(
-        json.dumps(payload, indent=2, sort_keys=True) + "\n",
-        encoding="utf-8",
+def _set_chapter_upload_pin(chapter: str, pin: str) -> None:
+    if not SUPABASE:
+        raise SupabaseError("Supabase is not configured.")
+    chapter_slug = slugify(chapter)
+    SUPABASE.upsert_chapter_upload_pin(
+        chapter_slug=chapter_slug,
+        chapter_name=chapter,
+        chapter_pin=pin,
     )
 
 
-def _chapter_upload_pin_map() -> Dict[str, str]:
-    pins = dict(CHAPTER_UPLOAD_PINS)
-    pins.update(_load_saved_chapter_upload_pins())
-    return pins
-
-
-def _set_chapter_upload_pin(chapter: str, pin: str) -> None:
+def _set_chapter_yearly_goals(chapter: str, goals: Dict[str, float]) -> None:
+    if not SUPABASE:
+        raise SupabaseError("Supabase is not configured.")
     chapter_slug = slugify(chapter)
-    pins = _load_saved_chapter_upload_pins()
-    pins[chapter_slug] = pin
-    _save_chapter_upload_pins(pins)
+    SUPABASE.upsert_chapter_yearly_goals(
+        chapter_slug=chapter_slug,
+        chapter_name=chapter,
+        visitors=float(goals["visitors"]),
+        one_to_ones=float(goals["one_to_ones"]),
+        referrals=float(goals["referrals"]),
+        ceu=float(goals["ceu"]),
+        tyfcb=float(goals["tyfcb"]),
+    )
+
+
+def _default_yearly_goals() -> Dict[str, float]:
+    return {key: float(value) for key, value in ANALYTICS_GOALS.items()}
+
+
+def _chapter_yearly_goals(chapter: str) -> Dict[str, float]:
+    goals = _default_yearly_goals()
+    if not SUPABASE:
+        return goals
+
+    chapter_slug = slugify(chapter)
+    try:
+        row = SUPABASE.get_chapter_yearly_goals(chapter_slug=chapter_slug)
+    except SupabaseError as exc:
+        if "chapter_yearly_goals" in str(exc):
+            return goals
+        raise
+
+    if not row:
+        return goals
+
+    for key in ("visitors", "one_to_ones", "referrals", "ceu", "tyfcb"):
+        value = row.get(key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            goals[key] = float(value)
+
+    return goals
+
+
+def _validate_yearly_goals_input(goals: Dict[str, float]) -> None:
+    labels = {
+        "visitors": "Visitors",
+        "one_to_ones": "One to Ones",
+        "referrals": "Referrals",
+        "ceu": "CEU",
+        "tyfcb": "TYFCB",
+    }
+    for key, label in labels.items():
+        value = goals.get(key)
+        if isinstance(value, bool) or not isinstance(value, (int, float)):
+            raise HTTPException(status_code=400, detail=f"{label} yearly goal must be a number.")
+        if float(value) < 0:
+            raise HTTPException(status_code=400, detail=f"{label} yearly goal cannot be negative.")
+
+
+def _public_yearly_goals_payload(goals: Dict[str, float]) -> Dict[str, object]:
+    return {key: _round_total(float(goals.get(key, 0.0))) for key in ANALYTICS_GOALS.keys()}
 
 
 def load_chapters() -> List[str]:
@@ -771,6 +823,7 @@ def _build_analytics_payload(
     ytd_uploaded_at: Optional[str],
     traffic_uploaded_at: Optional[str],
     traffic_report_month: Optional[str],
+    yearly_goals: Dict[str, float],
 ) -> Dict[str, object]:
     weekly_summary = {
         "visitors": _sum_metric(weekly_rows, "v"),
@@ -786,6 +839,10 @@ def _build_analytics_payload(
         "referrals": _sum_metric(ytd_rows, "referrals_total"),
         "tyfcb": _sum_metric(ytd_rows, "tyfcb"),
     }
+    goals = {
+        key: float(yearly_goals.get(key, ANALYTICS_GOALS[key]))
+        for key in ANALYTICS_GOALS.keys()
+    }
 
     bar_order = [
         ("ceu", "CEU"),
@@ -797,7 +854,7 @@ def _build_analytics_payload(
     bar_metrics = []
     for key, label in bar_order:
         current = float(_as_number(ytd_summary.get(key)))
-        goal = float(ANALYTICS_GOALS[key])
+        goal = float(goals[key])
         bar_metrics.append(
             {
                 "key": key,
@@ -817,7 +874,7 @@ def _build_analytics_payload(
     ]
     for key, label in table_order:
         current = float(_as_number(ytd_summary.get(key)))
-        goal = float(ANALYTICS_GOALS[key])
+        goal = float(goals[key])
         pct_to_goal = round((current / goal) * 100.0, 1) if goal > 0 else 0.0
         ytd_metrics.append(
             {
@@ -848,6 +905,7 @@ def _build_analytics_payload(
         },
         "weekly_summary": weekly_summary,
         "ytd_summary": ytd_summary,
+        "yearly_goals": _public_yearly_goals_payload(goals),
         "bar_metrics": bar_metrics,
         "ytd_metrics": ytd_metrics,
         "traffic_distribution": traffic_parts["distribution"],
@@ -861,6 +919,7 @@ def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
 
     chapter_slug = slugify(chapter)
     chapter_row = SUPABASE.get_chapter_by_slug(chapter_slug)
+    chapter_goals = _chapter_yearly_goals(chapter)
     if not chapter_row:
         return _build_analytics_payload(
             chapter=chapter,
@@ -873,6 +932,7 @@ def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
             ytd_uploaded_at=None,
             traffic_uploaded_at=None,
             traffic_report_month=None,
+            yearly_goals=chapter_goals,
         )
 
     chapter_id = str(chapter_row["id"])
@@ -914,6 +974,7 @@ def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
         ytd_uploaded_at=str(ytd_upload.get("uploaded_at")) if ytd_upload else None,
         traffic_uploaded_at=str(traffic_upload.get("uploaded_at")) if traffic_upload else None,
         traffic_report_month=str(traffic_upload.get("report_month")) if traffic_upload else None,
+        yearly_goals=chapter_goals,
     )
 
 
@@ -948,6 +1009,7 @@ def _load_local_analytics(chapter: str) -> Dict[str, object]:
         traffic_report_month=infer_traffic_report_month(traffic_path.name)
         if traffic_path
         else None,
+        yearly_goals=_chapter_yearly_goals(chapter),
     )
 
 
@@ -986,9 +1048,9 @@ def pin_settings_page(request: Request):
 def api_login(payload: LoginPayload):
     password = (payload.password or "").strip()
     if not password:
-        raise HTTPException(status_code=400, detail="Password or PIN is required.")
+        raise HTTPException(status_code=400, detail="PIN is required.")
     if not _password_matches(password):
-        raise HTTPException(status_code=401, detail="Invalid password or PIN.")
+        raise HTTPException(status_code=401, detail="Invalid PIN.")
 
     response = JSONResponse(
         {
@@ -1019,6 +1081,8 @@ def change_chapter_pin(
 
     if not chapter:
         raise HTTPException(status_code=400, detail="Chapter is required.")
+    if not SUPABASE:
+        raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
     if not current_pin:
         raise HTTPException(status_code=400, detail="Current PIN is required.")
     if not new_pin:
@@ -1042,22 +1106,101 @@ def change_chapter_pin(
     if hmac.compare_digest(current_pin, new_pin):
         raise HTTPException(status_code=400, detail="New PIN must be different from current PIN.")
 
-    expected_pin = _expected_chapter_upload_pin(chapter)
+    try:
+        expected_pin = _expected_chapter_upload_pin(chapter)
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to verify current chapter PIN from Supabase: {exc}",
+        ) from exc
     if not hmac.compare_digest(current_pin, expected_pin):
         raise HTTPException(status_code=403, detail="Current PIN is incorrect.")
 
     try:
         _set_chapter_upload_pin(chapter, new_pin)
-    except OSError as exc:
+    except SupabaseError as exc:
         raise HTTPException(
             status_code=500,
-            detail=f"Unable to save chapter PIN: {exc}",
+            detail=f"Unable to save chapter PIN to Supabase: {exc}",
         ) from exc
 
     return {
         "status": "ok",
         "chapter": chapter,
         "chapter_slug": slugify(chapter),
+    }
+
+
+@app.get("/api/chapter-goals")
+def chapter_goals(chapter: str, _auth: None = Depends(_require_api_auth)) -> Dict[str, object]:
+    chapter = (chapter or "").strip()
+    if not chapter:
+        raise HTTPException(status_code=400, detail="Chapter is required.")
+    if not SUPABASE:
+        raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
+
+    try:
+        goals = _chapter_yearly_goals(chapter)
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to load chapter yearly goals from Supabase: {exc}",
+        ) from exc
+
+    return {
+        "status": "ok",
+        "chapter": chapter,
+        "chapter_slug": slugify(chapter),
+        "yearly_goals": _public_yearly_goals_payload(goals),
+    }
+
+
+@app.post("/api/chapter-goals/change")
+def change_chapter_goals(
+    payload: ChapterGoalsUpdatePayload,
+    _auth: None = Depends(_require_api_auth),
+) -> Dict[str, object]:
+    chapter = (payload.chapter or "").strip()
+    current_pin = (payload.current_pin or "").strip()
+    if not chapter:
+        raise HTTPException(status_code=400, detail="Chapter is required.")
+    if not SUPABASE:
+        raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
+    if not current_pin:
+        raise HTTPException(status_code=400, detail="Current PIN is required.")
+
+    goals: Dict[str, float] = {
+        "visitors": float(payload.visitors),
+        "one_to_ones": float(payload.one_to_ones),
+        "referrals": float(payload.referrals),
+        "ceu": float(payload.ceu),
+        "tyfcb": float(payload.tyfcb),
+    }
+    _validate_yearly_goals_input(goals)
+
+    try:
+        expected_pin = _expected_chapter_upload_pin(chapter)
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to verify current chapter PIN from Supabase: {exc}",
+        ) from exc
+    if not hmac.compare_digest(current_pin, expected_pin):
+        raise HTTPException(status_code=403, detail="Current PIN is incorrect.")
+
+    try:
+        _set_chapter_yearly_goals(chapter, goals)
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to save chapter yearly goals to Supabase: {exc}",
+        ) from exc
+
+    return {
+        "status": "ok",
+        "chapter": chapter,
+        "chapter_slug": slugify(chapter),
+        "yearly_goals": _public_yearly_goals_payload(goals),
     }
 
 
@@ -1110,7 +1253,13 @@ async def upload_file(
         raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
     if not chapter_pin:
         raise HTTPException(status_code=400, detail="Chapter PIN is required.")
-    expected_pin = _expected_chapter_upload_pin(chapter)
+    try:
+        expected_pin = _expected_chapter_upload_pin(chapter)
+    except SupabaseError as exc:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Unable to verify chapter PIN from Supabase: {exc}",
+        ) from exc
     if not hmac.compare_digest(chapter_pin, expected_pin):
         raise HTTPException(status_code=403, detail="Invalid chapter PIN.")
 

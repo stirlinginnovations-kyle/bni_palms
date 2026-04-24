@@ -26,20 +26,20 @@ Login page:
 Chapter PIN settings page:
 - `http://127.0.0.1:8000/pin-settings`
 
-## Access login (password/PIN)
+## Access login (PIN)
 The app now requires login access for:
 - Upload page: `/`
 - Analytics page: `/analytics`
 - API endpoints used by those pages (`/api/chapters`, `/api/analytics`, `/api/upload`, `/api/process`)
 
-Configure one or more passwords/PINs with env vars:
+Configure one or more access PIN values with env vars:
 
 ```bash
-set APP_AUTH_PASSWORDS=1234,my-shared-password
+set APP_AUTH_PASSWORDS=1234,my-shared-pin
 ```
 
 Optional alternatives:
-- `APP_AUTH_PASSWORD` (single password)
+- `APP_AUTH_PASSWORD` (single PIN, legacy env name)
 - `APP_AUTH_PIN` (single PIN)
 
 Session/auth options:
@@ -50,8 +50,8 @@ set APP_AUTH_SESSION_SECONDS=43200
 set APP_AUTH_COOKIE_SECURE=0
 ```
 
-If no auth password env var is set, a local default password is used:
-- `bni-palms`
+If no auth PIN env var is set, a local default PIN is used:
+- `giversgain`
 
 ## Chapter upload PINs
 - Uploads now require a chapter PIN after clicking `Load Selected Report To Analytics`.
@@ -61,7 +61,7 @@ If no auth password env var is set, a local default password is used:
   - current PIN
   - new PIN
   - confirm new PIN
-- Changed chapter PINs are saved in local file `chapter_pins.json`.
+- Changed chapter PINs are saved in Supabase table `public.chapter_upload_pins`.
 
 Optional env configuration:
 
@@ -70,6 +70,22 @@ set APP_DEFAULT_CHAPTER_UPLOAD_PIN=12345
 set APP_CHAPTER_UPLOAD_PINS={\"st_charles\":\"67890\"}
 set APP_CHAPTER_PIN_MIN_LENGTH=4
 ```
+
+Note:
+- `APP_CHAPTER_UPLOAD_PINS` is an optional fallback map.
+- Supabase `public.chapter_upload_pins` takes priority when a chapter override exists there.
+- Re-run `supabase/schema.sql` after pulling this change so `public.chapter_upload_pins` exists.
+
+## Chapter yearly goals
+- The same `/pin-settings` page now lets you update chapter-specific yearly goals:
+  - Visitors
+  - One to Ones
+  - Referrals
+  - CEU
+  - TYFCB (closed business)
+- Saving yearly goals requires the selected chapter's current PIN.
+- Goals are saved in Supabase table `public.chapter_yearly_goals`.
+- Analytics (`/api/analytics`) reads these chapter-specific yearly goals; if a chapter has no row yet, defaults are used.
 
 ## Supabase runtime config
 To persist uploads to Supabase (storage + tables), set:
@@ -114,6 +130,8 @@ Run `supabase/schema.sql` in your Supabase SQL Editor.
 
 What it creates:
 - `public.chapters` (master chapter records)
+- `public.chapter_upload_pins` (chapter PIN overrides used by uploads + pin settings page)
+- `public.chapter_yearly_goals` (chapter-specific yearly goal targets used by analytics + pin settings page)
 - `public.chapter_report_uploads` (chapter-level weekly/ytd upload history + validation JSON)
 - `public.chapter_report_current` (exactly one current weekly/ytd file per chapter)
 - chapter-specific weekly/ytd upload tables named `public.chapter_uploads_<chapter_id_without_dashes>`

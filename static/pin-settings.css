@@ -35,14 +35,14 @@ body {
 }
 
 .pin-shell {
-  width: min(760px, 100%);
+  width: min(1000px, 100%);
   background: var(--card);
   border-radius: 18px;
   border: 1px solid var(--line);
   box-shadow: 0 16px 34px rgba(15, 23, 42, 0.1);
   padding: 28px;
   display: grid;
-  gap: 22px;
+  gap: 18px;
 }
 
 .pin-header {
@@ -89,9 +89,39 @@ body {
   text-decoration-thickness: 2px;
 }
 
-.pin-form {
+.settings-grid {
   display: grid;
   gap: 16px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.settings-card {
+  border: 1px solid rgba(100, 116, 139, 0.3);
+  border-radius: 14px;
+  background: #fbfcfe;
+  padding: 16px;
+  display: grid;
+  gap: 12px;
+}
+
+.settings-card h2 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.card-copy {
+  margin: 0;
+  color: var(--muted);
+  font-size: 0.92rem;
+}
+
+.chapter-card {
+  gap: 10px;
+}
+
+.pin-form,
+.goals-form {
+  gap: 12px;
 }
 
 .field {
@@ -105,8 +135,14 @@ body {
 
 .chapter-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
+  grid-template-columns: minmax(200px, 1fr) minmax(220px, 1fr);
   gap: 10px;
+}
+
+.goals-grid {
+  display: grid;
+  gap: 10px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
 select,
@@ -187,11 +223,21 @@ select:focus {
   color: #13653f;
 }
 
-@media (max-width: 740px) {
+@media (max-width: 980px) {
   .pin-shell {
     padding: 22px 18px;
   }
 
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .goals-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 740px) {
   .pin-header {
     grid-template-columns: 1fr;
     justify-items: start;

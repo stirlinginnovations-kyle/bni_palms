@@ -128,8 +128,7 @@ h1 {
 
 .chapter-row {
   display: grid;
-  grid-template-columns: minmax(220px, 1fr) minmax(220px, 1fr);
-  gap: 12px;
+  grid-template-columns: 1fr;
 }
 
 select,
