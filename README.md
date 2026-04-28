@@ -56,6 +56,7 @@ If no auth PIN env var is set, a local default PIN is used:
 ## Chapter upload PINs
 - Uploads now require a chapter PIN after clicking `Load Selected Report To Analytics`.
 - Default PIN for all chapters is `12345` unless overridden.
+- Traffic Lights uploads use a separate global PIN (default `innovation`).
 - Change a chapter PIN in the app at `/pin-settings` by entering:
   - chapter
   - current PIN
@@ -63,10 +64,16 @@ If no auth PIN env var is set, a local default PIN is used:
   - confirm new PIN
 - Changed chapter PINs are saved in Supabase table `public.chapter_upload_pins`.
 
+Default credentials:
+- Site login password: `giversgain`
+- Traffic Lights upload PIN: `innovation`
+- Chapter upload PIN (all chapters unless changed): `12345`
+
 Optional env configuration:
 
 ```bash
 set APP_DEFAULT_CHAPTER_UPLOAD_PIN=12345
+set APP_TRAFFIC_UPLOAD_PIN=innovation
 set APP_CHAPTER_UPLOAD_PINS={\"st_charles\":\"67890\"}
 set APP_CHAPTER_PIN_MIN_LENGTH=4
 ```
@@ -74,6 +81,7 @@ set APP_CHAPTER_PIN_MIN_LENGTH=4
 Note:
 - `APP_CHAPTER_UPLOAD_PINS` is an optional fallback map.
 - Supabase `public.chapter_upload_pins` takes priority when a chapter override exists there.
+- For the global Traffic Lights PIN, add/update row `chapter_slug='traffic_lights_global'` in `public.chapter_upload_pins` (or use `APP_TRAFFIC_UPLOAD_PIN` env var).
 - Re-run `supabase/schema.sql` after pulling this change so `public.chapter_upload_pins` exists.
 
 ## Chapter yearly goals

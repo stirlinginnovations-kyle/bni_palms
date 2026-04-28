@@ -68,6 +68,12 @@ AUTH_COOKIE_SECURE = os.getenv("APP_AUTH_COOKIE_SECURE", "0").strip().lower() in
 DEFAULT_CHAPTER_UPLOAD_PIN = (
     os.getenv("APP_DEFAULT_CHAPTER_UPLOAD_PIN", "12345").strip() or "12345"
 )
+DEFAULT_TRAFFIC_UPLOAD_PIN = (
+    os.getenv("APP_TRAFFIC_UPLOAD_PIN", "").strip()
+    or os.getenv("APP_DEFAULT_TRAFFIC_UPLOAD_PIN", "innovation").strip()
+    or "innovation"
+)
+TRAFFIC_UPLOAD_PIN_SLUG = "traffic_lights_global"
 CHAPTER_PIN_MIN_LENGTH = max(
     1,
     int((os.getenv("APP_CHAPTER_PIN_MIN_LENGTH", "4") or "4").strip() or "4"),
@@ -218,6 +224,23 @@ def _expected_chapter_upload_pin(chapter: str) -> str:
             if "chapter_upload_pins" not in str(exc):
                 raise
     return supabase_pin or CHAPTER_UPLOAD_PINS.get(chapter_key) or DEFAULT_CHAPTER_UPLOAD_PIN
+
+
+def _expected_traffic_upload_pin() -> str:
+    supabase_pin: Optional[str] = None
+    if SUPABASE:
+        try:
+            supabase_pin = SUPABASE.get_chapter_upload_pin(
+                chapter_slug=TRAFFIC_UPLOAD_PIN_SLUG
+            )
+        except SupabaseError as exc:
+            if "chapter_upload_pins" not in str(exc):
+                raise
+    return (
+        supabase_pin
+        or CHAPTER_UPLOAD_PINS.get(TRAFFIC_UPLOAD_PIN_SLUG)
+        or DEFAULT_TRAFFIC_UPLOAD_PIN
+    )
 
 
 def _page_auth_or_redirect(request: Request) -> Optional[RedirectResponse]:
@@ -1048,9 +1071,9 @@ def pin_settings_page(request: Request):
 def api_login(payload: LoginPayload):
     password = (payload.password or "").strip()
     if not password:
-        raise HTTPException(status_code=400, detail="PIN is required.")
+        raise HTTPException(status_code=400, detail="Password is required.")
     if not _password_matches(password):
-        raise HTTPException(status_code=401, detail="Invalid PIN.")
+        raise HTTPException(status_code=401, detail="Invalid password.")
 
     response = JSONResponse(
         {
@@ -1191,6 +1214,17 @@ def change_chapter_goals(
     try:
         _set_chapter_yearly_goals(chapter, goals)
     except SupabaseError as exc:
+        error_text = str(exc).lower()
+        if "chapter_yearly_goals" in error_text and (
+            "could not find the table" in error_text or "404" in error_text
+        ):
+            raise HTTPException(
+                status_code=503,
+                detail=(
+                    "Yearly goals table is not configured in Supabase yet. "
+                    "Run supabase/schema.sql in Supabase SQL Editor, then retry."
+                ),
+            ) from exc
         raise HTTPException(
             status_code=500,
             detail=f"Unable to save chapter yearly goals to Supabase: {exc}",
@@ -1252,16 +1286,35 @@ async def upload_file(
     if not SUPABASE:
         raise HTTPException(status_code=503, detail=SUPABASE_REQUIRED_DETAIL)
     if not chapter_pin:
-        raise HTTPException(status_code=400, detail="Chapter PIN is required.")
+        detail = (
+            "Traffic Lights PIN is required."
+            if report_type == "traffic"
+            else "Chapter PIN is required."
+        )
+        raise HTTPException(status_code=400, detail=detail)
     try:
-        expected_pin = _expected_chapter_upload_pin(chapter)
+        expected_pin = (
+            _expected_traffic_upload_pin()
+            if report_type == "traffic"
+            else _expected_chapter_upload_pin(chapter)
+        )
     except SupabaseError as exc:
+        detail = (
+            f"Unable to verify Traffic Lights PIN from Supabase: {exc}"
+            if report_type == "traffic"
+            else f"Unable to verify chapter PIN from Supabase: {exc}"
+        )
         raise HTTPException(
             status_code=500,
-            detail=f"Unable to verify chapter PIN from Supabase: {exc}",
+            detail=detail,
         ) from exc
     if not hmac.compare_digest(chapter_pin, expected_pin):
-        raise HTTPException(status_code=403, detail="Invalid chapter PIN.")
+        detail = (
+            "Invalid Traffic Lights PIN."
+            if report_type == "traffic"
+            else "Invalid chapter PIN."
+        )
+        raise HTTPException(status_code=403, detail=detail)
 
     if not file.filename:
         raise HTTPException(status_code=400, detail="Missing file.")
