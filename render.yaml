@@ -1,0 +1,26 @@
+services:
+  - type: web
+    name: bni-palms-api
+    runtime: python
+    plan: starter
+    autoDeploy: true
+    buildCommand: pip install -r requirements.txt
+    startCommand: uvicorn app.main:app --host 0.0.0.0 --port $PORT
+    healthCheckPath: /login
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_SERVICE_KEY
+        sync: false
+      - key: SUPABASE_STORAGE_BUCKET
+        value: chapter-reports
+      - key: APP_AUTH_SESSION_SECRET
+        generateValue: true
+      - key: APP_AUTH_COOKIE_SECURE
+        value: "1"
+      - key: APP_AUTH_PASSWORD
+        value: giversgain
+      - key: APP_DEFAULT_CHAPTER_UPLOAD_PIN
+        value: "12345"
+      - key: APP_TRAFFIC_UPLOAD_PIN
+        value: innovation

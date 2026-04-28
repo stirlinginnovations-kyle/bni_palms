@@ -26,6 +26,18 @@ Login page:
 Chapter PIN settings page:
 - `http://127.0.0.1:8000/pin-settings`
 
+## Deploy (Netlify + Render)
+Frontend:
+- Netlify serves static pages from this repo using `netlify.toml`.
+- API requests are proxied to `https://bni-palms-api.onrender.com/api/*`.
+
+Backend:
+- Deploy this repo to Render as a Blueprint (`render.yaml` included).
+- Render service name must be `bni-palms-api` so the Netlify proxy target matches.
+- In Render, set required env vars when prompted:
+  - `SUPABASE_URL`
+  - `SUPABASE_SERVICE_KEY`
+
 ## Access login (PIN)
 The app now requires login access for:
 - Upload page: `/`
