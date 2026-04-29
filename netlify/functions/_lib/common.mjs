@@ -12,7 +12,7 @@ export const ANALYTICS_GOALS = {
   tyfcb: 2500000,
 };
 
-export const AUTH_COOKIE_NAME = "bni_palms_auth";
+export const AUTH_COOKIE_NAME = "bni_palms_auth_v2";
 export const AUTH_COOKIE_MAX_AGE_SECONDS = Math.max(
   300,
   Number.parseInt(process.env.APP_AUTH_SESSION_SECONDS || "43200", 10) || 43200,
