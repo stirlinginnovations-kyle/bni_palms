@@ -1,6 +1,10 @@
 [build]
   publish = "."
 
+[functions]
+  directory = "netlify/functions"
+  node_bundler = "esbuild"
+
 [[redirects]]
   from = "/"
   to = "/static/index.html"
@@ -23,6 +27,6 @@
 
 [[redirects]]
   from = "/api/*"
-  to = "https://bni-palms-api.onrender.com/api/:splat"
+  to = "/.netlify/functions/api/:splat"
   status = 200
   force = true

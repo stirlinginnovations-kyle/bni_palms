@@ -26,17 +26,24 @@ Login page:
 Chapter PIN settings page:
 - `http://127.0.0.1:8000/pin-settings`
 
-## Deploy (Netlify + Render)
-Frontend:
-- Netlify serves static pages from this repo using `netlify.toml`.
-- API requests are proxied to `https://bni-palms-api.onrender.com/api/*`.
-
-Backend:
-- Deploy this repo to Render as a Blueprint (`render.yaml` included).
-- Render service name must be `bni-palms-api` so the Netlify proxy target matches.
-- In Render, set required env vars when prompted:
+## Deploy (Netlify only + Supabase)
+- Netlify serves static pages and runs API routes from `netlify/functions/api.mjs`.
+- `netlify.toml` rewrites `/api/*` to the Netlify function.
+- Required Netlify environment variables:
   - `SUPABASE_URL`
-  - `SUPABASE_SERVICE_KEY`
+  - `SUPABASE_SERVICE_KEY` (or `SUPABASE_SERVICE_ROLE_KEY`)
+- Recommended Netlify environment variables:
+  - `APP_AUTH_SESSION_SECRET`
+  - `APP_AUTH_SESSION_SECONDS`
+  - `APP_AUTH_COOKIE_SECURE` (`1` in production HTTPS)
+  - `APP_DEFAULT_CHAPTER_UPLOAD_PIN`
+  - `APP_TRAFFIC_UPLOAD_PIN`
+  - `APP_CHAPTER_PIN_MIN_LENGTH`
+
+The pin settings page (`/pin-settings`) uses these Netlify API endpoints:
+- `GET /api/chapter-goals`
+- `POST /api/chapter-goals/change`
+- `POST /api/chapter-pin/change`
 
 ## Access login (PIN)
 The app now requires login access for:

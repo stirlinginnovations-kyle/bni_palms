@@ -1,0 +1,10 @@
+{
+  "name": "bni-palms-netlify",
+  "private": true,
+  "type": "module",
+  "dependencies": {
+    "cookie": "^1.0.2",
+    "pdf-parse": "^1.1.1",
+    "xlsx": "^0.18.5"
+  }
+}
