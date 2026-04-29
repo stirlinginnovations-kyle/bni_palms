@@ -20,6 +20,19 @@ function redirectToLogin() {
   window.location.assign(`/login?next=${next}`);
 }
 
+async function ensureAuthenticated() {
+  const response = await fetch("/api/session", { cache: "no-store" });
+  if (response.status === 401) {
+    redirectToLogin();
+    return false;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.detail || "Unable to verify login session.");
+  }
+  return true;
+}
+
 function formatNumber(value) {
   return Number(value || 0).toLocaleString();
 }
@@ -279,6 +292,14 @@ chapterSelect.addEventListener("change", (event) => {
   loadAnalytics(selected);
 });
 
-loadChapters().catch(() => {
-  metaText.textContent = "Unable to load chapters.";
-});
+async function init() {
+  try {
+    const authenticated = await ensureAuthenticated();
+    if (!authenticated) return;
+    await loadChapters();
+  } catch (error) {
+    metaText.textContent = error.message || "Unable to load chapters.";
+  }
+}
+
+init();

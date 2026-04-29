@@ -52,6 +52,19 @@ function redirectToLogin() {
   window.location.assign(`/login?next=${next}`);
 }
 
+async function ensureAuthenticated() {
+  const res = await fetch("/api/session", { cache: "no-store" });
+  if (res.status === 401) {
+    redirectToLogin();
+    return false;
+  }
+  if (!res.ok) {
+    const payload = await res.json().catch(() => ({}));
+    throw new Error(payload.detail || "Unable to verify login session.");
+  }
+  return true;
+}
+
 function setUploadState(uploading, type = "") {
   isUploading = uploading;
   if (!loadButton) return;
@@ -99,7 +112,7 @@ async function loadChapters() {
       chapterSelect.appendChild(opt);
     });
   } catch (err) {
-    setStatus("Unable to load chapters.", "error");
+    setStatus(err.message || "Unable to load chapters.", "error");
   }
 }
 
@@ -109,6 +122,10 @@ function getTypeLabel(type) {
 
 function getTypeSummaryLabel(type) {
   return typeSummaryLabels[type] || typeSummaryLabels.traffic;
+}
+
+function getUploadPinLabel(type) {
+  return type === "traffic" ? "Traffic Lights PIN" : "Chapter PIN";
 }
 
 function updateDropMeta() {
@@ -148,12 +165,13 @@ function selectFile(type, file) {
   if (!validateSelectedFile(type, file)) return;
   selectedStore[type] = file;
   updateDropMeta();
+  const pinLabel = getUploadPinLabel(type);
   setStatus(
-    `${getTypeLabel(type)} selected. Click "Load Selected Report To Analytics" and enter the chapter PIN.`,
+    `${getTypeLabel(type)} selected. Click "Load Selected Report To Analytics" and enter the ${pinLabel}.`,
   );
 }
 
-async function uploadFile(type, file, chapterPin) {
+async function uploadFile(type, file, uploadPin) {
   if (isUploading) return;
 
   const chapter = getChapterValue();
@@ -161,8 +179,9 @@ async function uploadFile(type, file, chapterPin) {
     setStatus("Select a chapter name before uploading.", "error");
     return;
   }
-  if (!chapterPin) {
-    setStatus("Chapter PIN is required to upload.", "error");
+  const pinLabel = getUploadPinLabel(type);
+  if (!uploadPin) {
+    setStatus(`${pinLabel} is required to upload.`, "error");
     return;
   }
   if (!file) return;
@@ -171,7 +190,7 @@ async function uploadFile(type, file, chapterPin) {
   const formData = new FormData();
   formData.append("chapter", chapter);
   formData.append("report_type", type);
-  formData.append("chapter_pin", chapterPin);
+  formData.append("chapter_pin", uploadPin);
   formData.append("file", file);
 
   setStatus(
@@ -240,21 +259,36 @@ function attachDropZone() {
       return;
     }
 
-    const chapterPin = window.prompt(`Enter upload PIN for "${chapter}":`);
-    if (chapterPin === null) {
+    const pinPrompt =
+      type === "traffic"
+        ? "Enter Traffic Lights upload PIN:"
+        : `Enter chapter upload PIN for "${chapter}":`;
+    const uploadPin = window.prompt(pinPrompt);
+    if (uploadPin === null) {
       setStatus("Upload canceled. PIN entry is required.");
       return;
     }
-    if (!chapterPin.trim()) {
-      setStatus("Chapter PIN is required to upload.", "error");
+    if (!uploadPin.trim()) {
+      setStatus(`${getUploadPinLabel(type)} is required to upload.`, "error");
       return;
     }
 
-    uploadFile(type, file, chapterPin.trim());
+    uploadFile(type, file, uploadPin.trim());
   });
 }
 
-loadChapters();
-updateDropMeta();
-attachDropZone();
-setEmptySummaryState();
+async function init() {
+  updateDropMeta();
+  attachDropZone();
+  setEmptySummaryState();
+
+  try {
+    const authenticated = await ensureAuthenticated();
+    if (!authenticated) return;
+    await loadChapters();
+  } catch (err) {
+    setStatus(err.message || "Unable to start app.", "error");
+  }
+}
+
+init();

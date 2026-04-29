@@ -493,6 +493,13 @@ export default async function handler(request) {
     );
   }
 
+  if (route === "session" && method === "GET") {
+    if (!isAuthenticated(request)) {
+      return failure(401, "Login required.");
+    }
+    return jsonResponse(200, { status: "ok" });
+  }
+
   const authFailure = requireAuth(request);
   if (authFailure) {
     return authFailure;

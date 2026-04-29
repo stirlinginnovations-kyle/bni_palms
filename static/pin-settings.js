@@ -1,5 +1,4 @@
 const chapterSelect = document.getElementById("chapterSelect");
-const chapterCustom = document.getElementById("chapterCustom");
 
 const pinForm = document.getElementById("pinForm");
 const currentPinInput = document.getElementById("currentPin");
@@ -9,7 +8,6 @@ const pinMessage = document.getElementById("pinMessage");
 const savePinButton = document.getElementById("savePinButton");
 
 const goalsForm = document.getElementById("goalsForm");
-const goalsCurrentPinInput = document.getElementById("goalsCurrentPin");
 const goalVisitorsInput = document.getElementById("goalVisitors");
 const goalOneToOnesInput = document.getElementById("goalOneToOnes");
 const goalReferralsInput = document.getElementById("goalReferrals");
@@ -25,6 +23,19 @@ function redirectToLogin() {
   window.location.assign(`/login?next=${next}`);
 }
 
+async function ensureAuthenticated() {
+  const response = await fetch("/api/session", { cache: "no-store" });
+  if (response.status === 401) {
+    redirectToLogin();
+    return false;
+  }
+  const payload = await response.json().catch(() => ({}));
+  if (!response.ok) {
+    throw new Error(payload.detail || "Unable to verify login session.");
+  }
+  return true;
+}
+
 function setMessage(target, text, tone = "default") {
   if (!target) return;
   target.textContent = text;
@@ -38,8 +49,6 @@ function setMessage(target, text, tone = "default") {
 }
 
 function getChapterValue() {
-  const custom = String(chapterCustom.value || "").trim();
-  if (custom) return custom;
   return String(chapterSelect.value || "").trim();
 }
 
@@ -98,7 +107,7 @@ async function loadGoalsForChapter() {
   const requestToken = ++goalsRequestToken;
   if (!chapter) {
     renderGoals({});
-    setMessage(goalsMessage, "Select or type a chapter name to load yearly goals.");
+    setMessage(goalsMessage, "Select a chapter to load yearly goals.");
     return;
   }
 
@@ -183,7 +192,7 @@ pinForm.addEventListener("submit", async (event) => {
   const confirmNewPin = normalizePinInput(confirmNewPinInput.value);
 
   if (!chapter) {
-    setMessage(pinMessage, "Select or type a chapter name first.", "warning");
+    setMessage(pinMessage, "Select a chapter first.", "warning");
     return;
   }
   if (!currentPin) {
@@ -244,7 +253,6 @@ pinForm.addEventListener("submit", async (event) => {
     currentPinInput.value = "";
     newPinInput.value = "";
     confirmNewPinInput.value = "";
-    goalsCurrentPinInput.value = "";
     setMessage(pinMessage, "Chapter PIN updated successfully.", "success");
   } catch (error) {
     setMessage(pinMessage, error.message || "Unable to change chapter PIN.", "warning");
@@ -258,13 +266,8 @@ goalsForm.addEventListener("submit", async (event) => {
   event.preventDefault();
 
   const chapter = getChapterValue();
-  const currentPin = normalizePinInput(goalsCurrentPinInput.value);
   if (!chapter) {
-    setMessage(goalsMessage, "Select or type a chapter name first.", "warning");
-    return;
-  }
-  if (!currentPin) {
-    setMessage(goalsMessage, "Current PIN is required.", "warning");
+    setMessage(goalsMessage, "Select a chapter first.", "warning");
     return;
   }
 
@@ -301,6 +304,16 @@ goalsForm.addEventListener("submit", async (event) => {
     return;
   }
 
+  const currentPin = normalizePinInput(
+    window.prompt(`Enter current chapter PIN for "${chapter}":`) || "",
+  );
+  if (!currentPin) {
+    saveGoalsButton.disabled = false;
+    saveGoalsButton.textContent = "Save Yearly Goals";
+    setMessage(goalsMessage, "Current PIN is required to save yearly goals.", "warning");
+    return;
+  }
+
   try {
     const response = await fetch("/api/chapter-goals/change", {
       method: "POST",
@@ -323,7 +336,6 @@ goalsForm.addEventListener("submit", async (event) => {
     }
 
     renderGoals(payload.yearly_goals || goals);
-    goalsCurrentPinInput.value = "";
     setMessage(goalsMessage, "Chapter yearly goals updated successfully.", "success");
   } catch (error) {
     setMessage(
@@ -338,13 +350,20 @@ goalsForm.addEventListener("submit", async (event) => {
 });
 
 chapterSelect.addEventListener("change", () => {
-  chapterCustom.value = "";
   loadGoalsForChapter();
 });
 
-chapterCustom.addEventListener("change", () => {
-  loadGoalsForChapter();
-});
+async function init() {
+  attachPinToggles();
+  try {
+    const authenticated = await ensureAuthenticated();
+    if (!authenticated) return;
+    await loadChapters();
+  } catch (error) {
+    const message = error.message || "Unable to load chapters.";
+    setMessage(pinMessage, message, "warning");
+    setMessage(goalsMessage, message, "warning");
+  }
+}
 
-attachPinToggles();
-loadChapters();
+init();
