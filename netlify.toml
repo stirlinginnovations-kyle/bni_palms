@@ -3,7 +3,8 @@
 
 [functions]
   directory = "netlify/functions"
-  node_bundler = "esbuild"
+  # Use the more compatible JavaScript bundler for server-only deps (pdf/xlsx).
+  node_bundler = "zisi"
 
 [[redirects]]
   from = "/"
