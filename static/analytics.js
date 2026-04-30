@@ -86,12 +86,15 @@ function renderWeeklyCards(payload) {
 function renderBarChart(payload) {
   barChart.innerHTML = "";
   const metrics = payload.bar_metrics || [];
-  const maxValue = Math.max(
-    1,
-    ...metrics.map((m) => Math.max(Number(m.current || 0), Number(m.goal || 0))),
-  );
 
   metrics.forEach((metric) => {
+    const currentValue = Math.max(0, Number(metric.current || 0));
+    const goalValue = Math.max(0, Number(metric.goal || 0));
+    const ratioToGoal = goalValue > 0 ? currentValue / goalValue : 0;
+    const currentHeightPct =
+      currentValue <= 0 ? 0 : Math.max(Math.min(ratioToGoal * 100, 100), 2);
+    const goalHeightPct = goalValue > 0 ? 100 : 0;
+
     const group = document.createElement("article");
     group.className = "bar-group";
 
@@ -100,13 +103,18 @@ function renderBarChart(payload) {
 
     const currentBar = document.createElement("div");
     currentBar.className = "bar current";
-    currentBar.style.height = `${Math.max((Number(metric.current || 0) / maxValue) * 100, 2)}%`;
-    currentBar.title = `${metric.label} current: ${formatNumber(metric.current)}`;
+    currentBar.style.height = `${currentHeightPct}%`;
+    currentBar.title =
+      goalValue > 0
+        ? `${metric.label} current: ${formatNumber(currentValue)} (${(
+            ratioToGoal * 100
+          ).toFixed(1)}% of goal)`
+        : `${metric.label} current: ${formatNumber(currentValue)}`;
 
     const goalBar = document.createElement("div");
     goalBar.className = "bar goal";
-    goalBar.style.height = `${Math.max((Number(metric.goal || 0) / maxValue) * 100, 2)}%`;
-    goalBar.title = `${metric.label} goal: ${formatNumber(metric.goal)}`;
+    goalBar.style.height = `${goalHeightPct}%`;
+    goalBar.title = `${metric.label} goal: ${formatNumber(goalValue)}`;
 
     pair.appendChild(currentBar);
     pair.appendChild(goalBar);
@@ -117,7 +125,12 @@ function renderBarChart(payload) {
 
     const values = document.createElement("div");
     values.className = "bar-values";
-    values.textContent = `Current ${formatNumber(metric.current)} / Goal ${formatNumber(metric.goal)}`;
+    values.textContent =
+      goalValue > 0
+        ? `Current ${formatNumber(currentValue)} / Goal ${formatNumber(goalValue)} (${(
+            ratioToGoal * 100
+          ).toFixed(1)}%)`
+        : `Current ${formatNumber(currentValue)} / Goal not set`;
 
     group.appendChild(pair);
     group.appendChild(label);
