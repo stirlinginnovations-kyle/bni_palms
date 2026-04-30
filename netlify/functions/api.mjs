@@ -39,10 +39,6 @@ import {
 import { parseChapterSpreadsheet, parseTrafficLightsPdf } from "./_lib/parsers.mjs";
 import { SupabaseClient, SupabaseError } from "./_lib/supabase.mjs";
 
-export const config = {
-  path: "/api/*",
-};
-
 const SUPABASE = SupabaseClient.fromEnv();
 
 function getRoutePath(pathname) {
