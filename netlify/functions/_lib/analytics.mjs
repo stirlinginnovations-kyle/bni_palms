@@ -109,6 +109,27 @@ function sumMetric(rows, key) {
   return roundTotal(total);
 }
 
+function applySummaryOverrides(summary, overrides) {
+  if (!overrides || typeof overrides !== "object") {
+    return summary;
+  }
+  const mapping = [
+    ["visitors", "visitors"],
+    ["ceu", "ceu"],
+    ["one_to_ones", "one_to_ones"],
+    ["referrals", "referrals"],
+    ["tyfcb", "tyfcb"],
+  ];
+  const output = { ...summary };
+  for (const [summaryKey, overrideKey] of mapping) {
+    const value = Number(overrides?.[overrideKey]);
+    if (Number.isFinite(value)) {
+      output[summaryKey] = roundTotal(value);
+    }
+  }
+  return output;
+}
+
 function memberDisplayName(first, last) {
   const f = String(first || "").trim();
   const l = String(last || "").trim();
@@ -200,6 +221,8 @@ export function buildAnalyticsPayload({
   source,
   weeklyRows,
   ytdRows,
+  weeklySummaryOverrides,
+  ytdSummaryOverrides,
   trafficRows,
   weeklyUploadedAt,
   ytdUploadedAt,
@@ -221,6 +244,11 @@ export function buildAnalyticsPayload({
     referrals: sumMetric(ytdRows, "referrals_total"),
     tyfcb: sumMetric(ytdRows, "tyfcb"),
   };
+  const resolvedWeeklySummary = applySummaryOverrides(
+    weeklySummary,
+    weeklySummaryOverrides,
+  );
+  const resolvedYtdSummary = applySummaryOverrides(ytdSummary, ytdSummaryOverrides);
   const goals = {
     visitors: Number(yearlyGoals?.visitors ?? ANALYTICS_GOALS.visitors),
     one_to_ones: Number(yearlyGoals?.one_to_ones ?? ANALYTICS_GOALS.one_to_ones),
@@ -239,7 +267,7 @@ export function buildAnalyticsPayload({
   const barMetrics = barOrder.map(([key, label]) => ({
     key,
     label,
-    current: roundTotal(asNumber(ytdSummary[key])),
+    current: roundTotal(asNumber(resolvedYtdSummary[key])),
     goal: roundTotal(goals[key]),
   }));
 
@@ -251,7 +279,7 @@ export function buildAnalyticsPayload({
     ["tyfcb", "TYFCB"],
   ];
   const ytdMetrics = tableOrder.map(([key, label]) => {
-    const current = asNumber(ytdSummary[key]);
+    const current = asNumber(resolvedYtdSummary[key]);
     const goal = Number(goals[key]) || 0;
     const pctToGoal = goal > 0 ? Number(((current / goal) * 100).toFixed(1)) : 0;
     return {
@@ -280,8 +308,8 @@ export function buildAnalyticsPayload({
       ytd: Boolean(ytdRows?.length),
       traffic: Boolean(trafficRows?.length),
     },
-    weekly_summary: weeklySummary,
-    ytd_summary: ytdSummary,
+    weekly_summary: resolvedWeeklySummary,
+    ytd_summary: resolvedYtdSummary,
     yearly_goals: publicYearlyGoalsPayload(goals),
     bar_metrics: barMetrics,
     ytd_metrics: ytdMetrics,
@@ -289,4 +317,3 @@ export function buildAnalyticsPayload({
     club_members: trafficParts.clubMembers,
   };
 }
-

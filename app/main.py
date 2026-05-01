@@ -22,6 +22,7 @@ from .parsers import (
     REFERRAL_COLUMNS,
     REFERRALS_TOTAL_COLUMN,
     SPREADSHEET_TABLE_START_ROW,
+    extract_chapter_spreadsheet_summary_metrics,
     parse_chapter_spreadsheet,
     parse_traffic_lights_pdf,
     tally_referral_columns,
@@ -755,6 +756,54 @@ def _sum_metric(rows: Iterable[Dict[str, object]], key: str) -> object:
     return _round_total(sum(_as_number(row.get(key)) for row in rows))
 
 
+def _apply_summary_overrides(
+    summary: Dict[str, object],
+    overrides: Optional[Dict[str, object]],
+) -> Dict[str, object]:
+    if not overrides:
+        return summary
+    output = dict(summary)
+    mapping = {
+        "visitors": "visitors",
+        "ceu": "ceu",
+        "one_to_ones": "one_to_ones",
+        "referrals": "referrals",
+        "tyfcb": "tyfcb",
+    }
+    for summary_key, override_key in mapping.items():
+        value = overrides.get(override_key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            output[summary_key] = _round_total(float(value))
+    return output
+
+
+def _summary_overrides_from_validation(
+    validation: Optional[Dict[str, object]],
+) -> Optional[Dict[str, object]]:
+    if not isinstance(validation, dict):
+        return None
+    metrics = validation.get("summary_row_metrics")
+    if not isinstance(metrics, dict):
+        return None
+    output: Dict[str, object] = {}
+    mapping = {
+        "visitors": "v",
+        "ceu": "ceu",
+        "one_to_ones": "one_to_ones",
+        "referrals": "referrals_total",
+        "tyfcb": "tyfcb",
+    }
+    for target_key, source_key in mapping.items():
+        value = metrics.get(source_key)
+        if isinstance(value, bool):
+            continue
+        if isinstance(value, (int, float)):
+            output[target_key] = float(value)
+    return output or None
+
+
 def _member_display_name(first: str, last: str) -> str:
     first = (first or "").strip()
     last = (last or "").strip()
@@ -847,6 +896,8 @@ def _build_analytics_payload(
     traffic_uploaded_at: Optional[str],
     traffic_report_month: Optional[str],
     yearly_goals: Dict[str, float],
+    weekly_summary_overrides: Optional[Dict[str, object]] = None,
+    ytd_summary_overrides: Optional[Dict[str, object]] = None,
 ) -> Dict[str, object]:
     weekly_summary = {
         "visitors": _sum_metric(weekly_rows, "v"),
@@ -862,6 +913,14 @@ def _build_analytics_payload(
         "referrals": _sum_metric(ytd_rows, "referrals_total"),
         "tyfcb": _sum_metric(ytd_rows, "tyfcb"),
     }
+    resolved_weekly_summary = _apply_summary_overrides(
+        weekly_summary,
+        weekly_summary_overrides,
+    )
+    resolved_ytd_summary = _apply_summary_overrides(
+        ytd_summary,
+        ytd_summary_overrides,
+    )
     goals = {
         key: float(yearly_goals.get(key, ANALYTICS_GOALS[key]))
         for key in ANALYTICS_GOALS.keys()
@@ -876,7 +935,7 @@ def _build_analytics_payload(
     ]
     bar_metrics = []
     for key, label in bar_order:
-        current = float(_as_number(ytd_summary.get(key)))
+        current = float(_as_number(resolved_ytd_summary.get(key)))
         goal = float(goals[key])
         bar_metrics.append(
             {
@@ -896,7 +955,7 @@ def _build_analytics_payload(
         ("tyfcb", "TYFCB"),
     ]
     for key, label in table_order:
-        current = float(_as_number(ytd_summary.get(key)))
+        current = float(_as_number(resolved_ytd_summary.get(key)))
         goal = float(goals[key])
         pct_to_goal = round((current / goal) * 100.0, 1) if goal > 0 else 0.0
         ytd_metrics.append(
@@ -926,8 +985,8 @@ def _build_analytics_payload(
             "ytd": bool(ytd_rows),
             "traffic": bool(traffic_rows),
         },
-        "weekly_summary": weekly_summary,
-        "ytd_summary": ytd_summary,
+        "weekly_summary": resolved_weekly_summary,
+        "ytd_summary": resolved_ytd_summary,
         "yearly_goals": _public_yearly_goals_payload(goals),
         "bar_metrics": bar_metrics,
         "ytd_metrics": ytd_metrics,
@@ -998,6 +1057,16 @@ def _load_supabase_analytics(chapter: str) -> Dict[str, object]:
         traffic_uploaded_at=str(traffic_upload.get("uploaded_at")) if traffic_upload else None,
         traffic_report_month=str(traffic_upload.get("report_month")) if traffic_upload else None,
         yearly_goals=chapter_goals,
+        weekly_summary_overrides=(
+            _summary_overrides_from_validation(weekly_upload.get("validation"))
+            if weekly_upload
+            else None
+        ),
+        ytd_summary_overrides=(
+            _summary_overrides_from_validation(ytd_upload.get("validation"))
+            if ytd_upload
+            else None
+        ),
     )
 
 
@@ -1350,11 +1419,24 @@ async def upload_file(
             ) from exc
 
         parsed_rows = rows
+        summary_row_metrics = extract_chapter_spreadsheet_summary_metrics(target_path)
         columns_loaded = _extract_columns(rows)
         referral_tally = tally_referral_columns(rows)
         referral_total = _round_total(
             sum(float(referral_tally[col]) for col in REFERRAL_COLUMNS)
         )
+        member_summary = {
+            "v": _round_total(sum(_as_number(row.get("V")) for row in rows)),
+            "one_to_ones": _round_total(
+                sum(_as_number(row.get("1-2-1")) for row in rows)
+            ),
+            "tyfcb": _round_total(sum(_as_number(row.get("TYFCB")) for row in rows)),
+            "ceu": _round_total(sum(_as_number(row.get("CEU")) for row in rows)),
+            "referrals_total": _round_total(
+                sum(_as_number(row.get(REFERRALS_TOTAL_COLUMN)) for row in rows)
+            ),
+        }
+        summary_metrics = summary_row_metrics or member_summary
 
         validation = {
             "kind": "chapter_spreadsheet",
@@ -1365,44 +1447,32 @@ async def upload_file(
             "row_referrals_total_column": REFERRALS_TOTAL_COLUMN,
             "referral_tally": referral_tally,
             "referrals_total": referral_total,
+            "summary_row_metrics": summary_row_metrics,
             "key_metrics_summary": [
                 {
                     "key": "v",
                     "label": "V",
-                    "value": _round_total(
-                        sum(_as_number(row.get("V")) for row in rows)
-                    ),
+                    "value": summary_metrics["v"],
                 },
                 {
                     "key": "one_to_ones",
                     "label": "1-2-1's",
-                    "value": _round_total(
-                        sum(_as_number(row.get("1-2-1")) for row in rows)
-                    ),
+                    "value": summary_metrics["one_to_ones"],
                 },
                 {
                     "key": "tyfcb",
                     "label": "TYFCB",
-                    "value": _round_total(
-                        sum(_as_number(row.get("TYFCB")) for row in rows)
-                    ),
+                    "value": summary_metrics["tyfcb"],
                 },
                 {
                     "key": "ceu",
                     "label": "CEU",
-                    "value": _round_total(
-                        sum(_as_number(row.get("CEU")) for row in rows)
-                    ),
+                    "value": summary_metrics["ceu"],
                 },
                 {
                     "key": "referrals_total",
                     "label": "Referrals Total",
-                    "value": _round_total(
-                        sum(
-                            _as_number(row.get(REFERRALS_TOTAL_COLUMN))
-                            for row in rows
-                        )
-                    ),
+                    "value": summary_metrics["referrals_total"],
                 },
             ],
             "sample_members": _sample_members(rows),

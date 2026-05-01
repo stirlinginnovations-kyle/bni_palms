@@ -230,7 +230,7 @@ class SupabaseClient:
             "GET",
             "/rest/v1/chapter_report_uploads",
             query={
-                "select": "id,chapter_id,report_type,storage_path,uploaded_at",
+                "select": "id,chapter_id,report_type,storage_path,uploaded_at,validation",
                 "chapter_id": f"eq.{chapter_id}",
                 "report_type": f"eq.{report_type}",
                 "order": "uploaded_at.desc,id.desc",

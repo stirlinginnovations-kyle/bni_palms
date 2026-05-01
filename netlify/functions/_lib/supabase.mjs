@@ -247,7 +247,7 @@ export class SupabaseClient {
   async getLatestChapterUpload({ chapterId, reportType }) {
     const rows = await this.request("GET", "/rest/v1/chapter_report_uploads", {
       query: {
-        select: "id,chapter_id,report_type,storage_path,uploaded_at",
+        select: "id,chapter_id,report_type,storage_path,uploaded_at,validation",
         chapter_id: `eq.${chapterId}`,
         report_type: `eq.${reportType}`,
         order: "uploaded_at.desc,id.desc",
@@ -473,4 +473,3 @@ export class SupabaseClient {
     }
   }
 }
-

@@ -207,6 +207,120 @@ def parse_openxml_xlsx(path: Path) -> List[Dict[str, object]]:
         workbook.close()
 
 
+def _summary_metrics_from_row_dict(row: Dict[str, object]) -> Dict[str, object]:
+    return {
+        "v": _round_total(_as_number(row.get("V"))),
+        "one_to_ones": _round_total(_as_number(row.get("1-2-1"))),
+        "tyfcb": _round_total(_as_number(row.get("TYFCB"))),
+        "ceu": _round_total(_as_number(row.get("CEU"))),
+        "referrals_total": _round_total(_as_number(row.get(REFERRALS_TOTAL_COLUMN))),
+    }
+
+
+def _extract_spreadsheetml_summary_metrics(path: Path) -> Dict[str, object] | None:
+    tree = ET.parse(path)
+    root = tree.getroot()
+    worksheet = root.find("ss:Worksheet", SPREADSHEET_NS)
+    if worksheet is None:
+        return None
+    table = worksheet.find("ss:Table", SPREADSHEET_NS)
+    if table is None:
+        return None
+
+    rows = table.findall("ss:Row", SPREADSHEET_NS)
+    header: List[str] = []
+    row_num = 0
+
+    for row in rows:
+        idx_attr = row.get(SS_INDEX_ATTR)
+        if idx_attr:
+            try:
+                row_num = int(idx_attr)
+            except ValueError:
+                row_num += 1
+        else:
+            row_num += 1
+
+        if row_num < SPREADSHEET_TABLE_START_ROW:
+            continue
+
+        values = _row_values(row)
+        if row_num == SPREADSHEET_TABLE_START_ROW:
+            header = [v.strip() if v else "" for v in values]
+            if "First Name" not in header or "Last Name" not in header:
+                return None
+            continue
+
+        if not header:
+            continue
+        if not any(v not in ("", None) for v in values):
+            continue
+
+        first_cell = (values[0] or "").strip()
+        if first_cell != "Total":
+            continue
+
+        row_dict: Dict[str, object] = {}
+        for idx, col in enumerate(header):
+            if not col:
+                continue
+            cell_value = values[idx] if idx < len(values) else ""
+            if col in {"First Name", "Last Name"}:
+                row_dict[col] = str(cell_value).strip()
+            else:
+                row_dict[col] = _parse_value(cell_value)
+        row_dict[REFERRALS_TOTAL_COLUMN] = _row_referrals_total(row_dict)
+        return _summary_metrics_from_row_dict(row_dict)
+
+    return None
+
+
+def _extract_openxml_summary_metrics(path: Path) -> Dict[str, object] | None:
+    workbook = load_workbook(filename=path, read_only=True, data_only=True)
+    try:
+        worksheet = workbook.worksheets[0] if workbook.worksheets else None
+        if worksheet is None:
+            return None
+
+        header: List[str] = []
+        row_iter = worksheet.iter_rows(
+            min_row=SPREADSHEET_TABLE_START_ROW,
+            values_only=True,
+        )
+        for offset, row_values in enumerate(row_iter):
+            row_num = SPREADSHEET_TABLE_START_ROW + offset
+            values = list(row_values or [])
+            if row_num == SPREADSHEET_TABLE_START_ROW:
+                header = [str(v).strip() if v is not None else "" for v in values]
+                if "First Name" not in header or "Last Name" not in header:
+                    return None
+                continue
+            if not header:
+                continue
+            if not any(v not in ("", None) for v in values):
+                continue
+
+            first_cell = str(values[0]).strip() if values and values[0] is not None else ""
+            if first_cell != "Total":
+                continue
+
+            row_dict: Dict[str, object] = {}
+            for idx, col in enumerate(header):
+                if not col:
+                    continue
+                cell_value = values[idx] if idx < len(values) else None
+                if col in {"First Name", "Last Name"}:
+                    row_dict[col] = str(cell_value or "").strip()
+                else:
+                    row_dict[col] = _parse_excel_cell(cell_value)
+            row_dict[REFERRALS_TOTAL_COLUMN] = _row_referrals_total(row_dict)
+            return _summary_metrics_from_row_dict(row_dict)
+
+        return None
+    finally:
+        workbook.close()
+
+
 def parse_chapter_spreadsheet(path: Path) -> List[Dict[str, object]]:
     ext = path.suffix.lower()
     if ext == ".xlsx":
@@ -227,6 +341,23 @@ def parse_chapter_spreadsheet(path: Path) -> List[Dict[str, object]]:
         return parse_openxml_xlsx(path)
 
     return []
+
+
+def extract_chapter_spreadsheet_summary_metrics(path: Path) -> Dict[str, object] | None:
+    ext = path.suffix.lower()
+    if ext == ".xlsx" or ext == ".xlsm":
+        return _extract_openxml_summary_metrics(path)
+
+    if ext == ".xls":
+        summary = _extract_spreadsheetml_summary_metrics(path)
+        if summary:
+            return summary
+        try:
+            return _extract_openxml_summary_metrics(path)
+        except Exception:
+            return None
+
+    return None
 
 
 TL_COLUMNS = [

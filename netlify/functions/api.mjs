@@ -36,7 +36,11 @@ import {
   publicYearlyGoalsPayload,
   validateYearlyGoalsInput,
 } from "./_lib/analytics.mjs";
-import { parseChapterSpreadsheet, parseTrafficLightsPdf } from "./_lib/parsers.mjs";
+import {
+  extractChapterSpreadsheetSummaryMetrics,
+  parseChapterSpreadsheet,
+  parseTrafficLightsPdf,
+} from "./_lib/parsers.mjs";
 import { SupabaseClient, SupabaseError } from "./_lib/supabase.mjs";
 
 const SUPABASE = SupabaseClient.fromEnv();
@@ -424,6 +428,8 @@ async function loadSupabaseAnalytics(chapter) {
     source: "supabase",
     weeklyRows,
     ytdRows,
+    weeklySummaryOverrides: summaryOverridesFromValidation(weeklyUpload?.validation),
+    ytdSummaryOverrides: summaryOverridesFromValidation(ytdUpload?.validation),
     trafficRows,
     weeklyUploadedAt: weeklyUpload?.uploaded_at || null,
     ytdUploadedAt: ytdUpload?.uploaded_at || null,
@@ -431,6 +437,28 @@ async function loadSupabaseAnalytics(chapter) {
     trafficReportMonth: trafficUpload?.report_month || null,
     yearlyGoals: chapterGoals,
   });
+}
+
+function summaryOverridesFromValidation(validation) {
+  const metrics = validation?.summary_row_metrics;
+  if (!metrics || typeof metrics !== "object") {
+    return null;
+  }
+  const overrides = {};
+  const mapping = [
+    ["visitors", "v"],
+    ["ceu", "ceu"],
+    ["one_to_ones", "one_to_ones"],
+    ["referrals", "referrals_total"],
+    ["tyfcb", "tyfcb"],
+  ];
+  for (const [targetKey, sourceKey] of mapping) {
+    const value = nullableNumber(metrics?.[sourceKey]);
+    if (value !== null) {
+      overrides[targetKey] = value;
+    }
+  }
+  return Object.keys(overrides).length ? overrides : null;
 }
 
 function parseNumericPin(pin) {
@@ -779,11 +807,27 @@ export default async function handler(request) {
       }
 
       parsedRows = rows;
+      const summaryRowMetrics = extractChapterSpreadsheetSummaryMetrics(content);
       const columnsLoaded = extractColumns(rows);
       const referralTally = tallyReferralColumns(rows);
       const referralTotal = roundTotal(
         REFERRAL_COLUMNS.reduce((acc, col) => acc + Number(referralTally[col] || 0), 0),
       );
+      const memberSummary = {
+        v: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.V), 0)),
+        one_to_ones: roundTotal(
+          rows.reduce((acc, row) => acc + asNumber(row?.["1-2-1"]), 0),
+        ),
+        tyfcb: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.TYFCB), 0)),
+        ceu: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.CEU), 0)),
+        referrals_total: roundTotal(
+          rows.reduce(
+            (acc, row) => acc + asNumber(row?.[REFERRALS_TOTAL_COLUMN]),
+            0,
+          ),
+        ),
+      };
+      const summaryMetrics = summaryRowMetrics || memberSummary;
 
       validation = {
         kind: "chapter_spreadsheet",
@@ -794,36 +838,32 @@ export default async function handler(request) {
         row_referrals_total_column: REFERRALS_TOTAL_COLUMN,
         referral_tally: referralTally,
         referrals_total: referralTotal,
+        summary_row_metrics: summaryRowMetrics,
         key_metrics_summary: [
           {
             key: "v",
             label: "V",
-            value: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.V), 0)),
+            value: summaryMetrics.v,
           },
           {
             key: "one_to_ones",
             label: "1-2-1's",
-            value: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.["1-2-1"]), 0)),
+            value: summaryMetrics.one_to_ones,
           },
           {
             key: "tyfcb",
             label: "TYFCB",
-            value: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.TYFCB), 0)),
+            value: summaryMetrics.tyfcb,
           },
           {
             key: "ceu",
             label: "CEU",
-            value: roundTotal(rows.reduce((acc, row) => acc + asNumber(row?.CEU), 0)),
+            value: summaryMetrics.ceu,
           },
           {
             key: "referrals_total",
             label: "Referrals Total",
-            value: roundTotal(
-              rows.reduce(
-                (acc, row) => acc + asNumber(row?.[REFERRALS_TOTAL_COLUMN]),
-                0,
-              ),
-            ),
+            value: summaryMetrics.referrals_total,
           },
         ],
         sample_members: sampleMembers(rows),

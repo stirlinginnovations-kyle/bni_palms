@@ -158,6 +158,84 @@ export function parseChapterSpreadsheet(buffer) {
   return output;
 }
 
+function summaryMetricsFromRow(row) {
+  if (!row || typeof row !== "object") {
+    return null;
+  }
+  return {
+    v: roundTotal(asNumber(row?.V)),
+    one_to_ones: roundTotal(asNumber(row?.["1-2-1"])),
+    tyfcb: roundTotal(asNumber(row?.TYFCB)),
+    ceu: roundTotal(asNumber(row?.CEU)),
+    referrals_total: roundTotal(asNumber(row?.[REFERRALS_TOTAL_COLUMN])),
+  };
+}
+
+export function extractChapterSpreadsheetSummaryMetrics(buffer) {
+  const workbook = XLSX.read(buffer, {
+    type: "buffer",
+    raw: true,
+    cellDates: false,
+    dense: false,
+  });
+  const firstSheetName = workbook.SheetNames?.[0];
+  if (!firstSheetName) {
+    return null;
+  }
+
+  const sheet = workbook.Sheets[firstSheetName];
+  if (!sheet) {
+    return null;
+  }
+
+  const rows = XLSX.utils.sheet_to_json(sheet, {
+    header: 1,
+    raw: true,
+    defval: "",
+    blankrows: false,
+  });
+  if (!Array.isArray(rows) || rows.length < SPREADSHEET_TABLE_START_ROW) {
+    return null;
+  }
+
+  const headerRow = rows[SPREADSHEET_TABLE_START_ROW - 1] || [];
+  const header = headerRow.map((value) => String(value ?? "").trim());
+  if (!header.includes("First Name") || !header.includes("Last Name")) {
+    return null;
+  }
+
+  for (let rowIndex = SPREADSHEET_TABLE_START_ROW; rowIndex < rows.length; rowIndex += 1) {
+    const values = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
+    const hasContent = values.some((value) => value !== "" && value !== null && value !== undefined);
+    if (!hasContent) {
+      continue;
+    }
+
+    const firstCell = String(values[0] ?? "").trim();
+    if (firstCell !== "Total") {
+      continue;
+    }
+
+    const row = {};
+    for (let idx = 0; idx < header.length; idx += 1) {
+      const col = header[idx];
+      if (!col) {
+        continue;
+      }
+      const cellValue = idx < values.length ? values[idx] : "";
+      if (col === "First Name" || col === "Last Name") {
+        row[col] = String(cellValue ?? "").trim();
+      } else {
+        row[col] = parseExcelCell(cellValue);
+      }
+    }
+    row[REFERRALS_TOTAL_COLUMN] = rowReferralsTotal(row);
+    return summaryMetricsFromRow(row);
+  }
+
+  return null;
+}
+
 function trafficNumericValue(token) {
   const value = parseValue(token);
   return typeof value === "number" && Number.isFinite(value) ? value : null;
@@ -304,4 +382,3 @@ export async function parseTrafficLightsPdf(buffer) {
   }
   return output;
 }
-
