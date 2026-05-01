@@ -32,7 +32,7 @@ loginForm.addEventListener("submit", async (event) => {
   event.preventDefault();
   const password = String(passwordInput.value || "").trim();
   if (!password) {
-    setMessage("Enter your PIN.", "warning");
+    setMessage("Enter your password.", "warning");
     return;
   }
 

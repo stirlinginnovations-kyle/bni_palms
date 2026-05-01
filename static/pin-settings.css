@@ -135,8 +135,7 @@ body {
 
 .chapter-row {
   display: grid;
-  grid-template-columns: minmax(200px, 1fr) minmax(220px, 1fr);
-  gap: 10px;
+  grid-template-columns: 1fr;
 }
 
 .goals-grid {

@@ -1,0 +1,33 @@
+# Netlify
+.netlify/
+
+# Node
+node_modules/
+
+# Python
+__pycache__/
+*.py[cod]
+
+# Local envs
+.venv/
+venv/
+env/
+
+# Runtime data
+uploads/
+outputs/
+
+# Local logs and temp diagnostics
+*.log
+_*.log
+_cookiejar.txt
+_login_*.txt
+_login_*.json
+_nfunc_*.log
+_netlify_dev_*.log
+_stc_*.json
+_stc_dl_headers.txt
+_stch_*_from_supabase.xlsx
+_*.py
+chapter_pins.json
+deno.lock
