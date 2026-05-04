@@ -53,25 +53,8 @@ function formatDateTime(value) {
 }
 
 function setMeta(payload) {
-  const updated = payload.updated_at || {};
-  const parts = [];
-  if (updated.weekly_uploaded_at) {
-    parts.push(`Weekly: ${formatDateTime(updated.weekly_uploaded_at)}`);
-  }
-  if (updated.ytd_uploaded_at) {
-    parts.push(`YTD: ${formatDateTime(updated.ytd_uploaded_at)}`);
-  }
-  if (updated.traffic_uploaded_at) {
-    parts.push(`Traffic: ${formatDateTime(updated.traffic_uploaded_at)}`);
-  }
-  if (updated.traffic_report_month) {
-    parts.push(`Traffic Month: ${updated.traffic_report_month}`);
-  }
-  if (parts.length === 0) {
-    parts.push("No uploads found yet for this chapter.");
-  }
-  parts.push(`Source: ${payload.source}`);
-  metaText.textContent = parts.join(" | ");
+  metaText.textContent = "";
+  metaText.style.display = "none";
 }
 
 function renderWeeklyCards(payload) {
@@ -247,7 +230,8 @@ function renderPayload(payload) {
 }
 
 async function loadAnalytics(chapter) {
-  metaText.textContent = "Loading analytics...";
+  metaText.textContent = "";
+  metaText.style.display = "none";
   try {
     const response = await fetch(`/api/analytics?chapter=${encodeURIComponent(chapter)}`);
     if (response.status === 401) {
@@ -260,6 +244,7 @@ async function loadAnalytics(chapter) {
     }
     renderPayload(payload);
   } catch (error) {
+    metaText.style.display = "block";
     metaText.textContent = error.message || "Unable to load analytics.";
   }
 }
@@ -285,6 +270,7 @@ async function loadChapters() {
     option.value = "";
     option.textContent = "No chapters found";
     chapterSelect.appendChild(option);
+    metaText.style.display = "block";
     metaText.textContent = "Upload data first, then refresh this page.";
     return;
   }
@@ -311,6 +297,7 @@ async function init() {
     if (!authenticated) return;
     await loadChapters();
   } catch (error) {
+    metaText.style.display = "block";
     metaText.textContent = error.message || "Unable to load chapters.";
   }
 }

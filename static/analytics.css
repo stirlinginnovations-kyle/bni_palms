@@ -87,7 +87,7 @@ h1 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: auto minmax(240px, 350px) 1fr;
+  grid-template-columns: auto minmax(240px, 350px);
   align-items: center;
   gap: 12px;
   padding: 14px 18px 12px;
@@ -112,9 +112,11 @@ h1 {
 }
 
 .meta-text {
-  text-align: right;
+  grid-column: 1 / -1;
+  text-align: left;
   font-size: 0.82rem;
   color: var(--muted);
+  display: none;
 }
 
 .weekly-cards {
