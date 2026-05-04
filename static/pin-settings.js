@@ -159,7 +159,7 @@ async function loadGoalsForChapter() {
     }
 
     renderGoals(payload.yearly_goals || {});
-    setMessage(goalsMessage, "Current yearly goals loaded.", "success");
+    setMessage(goalsMessage, "Current yearly goals loaded.");
   } catch (error) {
     if (requestToken !== goalsRequestToken) {
       return;
@@ -432,7 +432,7 @@ async function loadUploadLogForChapter() {
     }
 
     renderLoadLog(payload);
-    setMessage(loadLogMessage, "Report load history loaded.", "success");
+    setMessage(loadLogMessage, "Report load history loaded.");
   } catch (error) {
     if (requestToken !== loadLogRequestToken) {
       return;
