@@ -48,6 +48,17 @@ body {
   gap: 12px;
 }
 
+.logo-home-link {
+  display: block;
+  border-radius: 10px;
+  line-height: 0;
+}
+
+.logo-home-link:focus-visible {
+  outline: 3px solid rgba(15, 23, 42, 0.25);
+  outline-offset: 3px;
+}
+
 .bni-logo {
   width: 124px;
   height: auto;
@@ -87,7 +98,7 @@ h1 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: auto minmax(240px, 350px);
+  grid-template-columns: minmax(240px, 350px);
   align-items: center;
   gap: 12px;
   padding: 14px 18px 12px;
