@@ -1,6 +1,9 @@
 # bni_palms
 BNI PALMS reporting tool.
 
+## New User Onboarding
+- See [docs/ONBOARDING.md](docs/ONBOARDING.md) for the step-by-step guide for chapter users.
+
 ## Run locally
 1. Install Python 3.10+.
 2. Install dependencies:
