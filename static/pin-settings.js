@@ -15,8 +15,15 @@ const goalCeuInput = document.getElementById("goalCeu");
 const goalTyfcbInput = document.getElementById("goalTyfcb");
 const goalsMessage = document.getElementById("goalsMessage");
 const saveGoalsButton = document.getElementById("saveGoalsButton");
+const loadLogMessage = document.getElementById("loadLogMessage");
+const weeklyLoadAt = document.getElementById("weeklyLoadAt");
+const ytdLoadAt = document.getElementById("ytdLoadAt");
+const trafficLoadAt = document.getElementById("trafficLoadAt");
+const trafficMonth = document.getElementById("trafficMonth");
+const loadSource = document.getElementById("loadSource");
 
 let goalsRequestToken = 0;
+let loadLogRequestToken = 0;
 
 function redirectToLogin() {
   const next = encodeURIComponent(window.location.pathname);
@@ -46,6 +53,13 @@ function setMessage(target, text, tone = "default") {
   if (tone === "success") {
     target.classList.add("success");
   }
+}
+
+function formatDateTime(value) {
+  if (!value) return "Not uploaded";
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) return String(value);
+  return parsed.toLocaleString();
 }
 
 function getChapterValue() {
@@ -91,6 +105,23 @@ function parseGoalValue(input, label) {
 function setGoalInputValue(input, value) {
   const numericValue = Number(value);
   input.value = Number.isFinite(numericValue) ? String(numericValue) : "";
+}
+
+function resetLoadLog() {
+  weeklyLoadAt.textContent = "Not uploaded";
+  ytdLoadAt.textContent = "Not uploaded";
+  trafficLoadAt.textContent = "Not uploaded";
+  trafficMonth.textContent = "Not set";
+  loadSource.textContent = "n/a";
+}
+
+function renderLoadLog(payload) {
+  const updated = payload.updated_at || {};
+  weeklyLoadAt.textContent = formatDateTime(updated.weekly_uploaded_at);
+  ytdLoadAt.textContent = formatDateTime(updated.ytd_uploaded_at);
+  trafficLoadAt.textContent = formatDateTime(updated.traffic_uploaded_at);
+  trafficMonth.textContent = updated.traffic_report_month || "Not set";
+  loadSource.textContent = payload.source || "n/a";
 }
 
 function renderGoals(goals) {
@@ -165,6 +196,8 @@ async function loadChapters() {
       chapterSelect.appendChild(opt);
       setMessage(pinMessage, "No chapters found in Supabase.", "warning");
       setMessage(goalsMessage, "No chapters found in Supabase.", "warning");
+      setMessage(loadLogMessage, "No chapters found in Supabase.", "warning");
+      resetLoadLog();
       return;
     }
 
@@ -175,11 +208,13 @@ async function loadChapters() {
       chapterSelect.appendChild(opt);
     });
 
-    await loadGoalsForChapter();
+    await Promise.all([loadGoalsForChapter(), loadUploadLogForChapter()]);
   } catch (error) {
     const message = error.message || "Unable to load chapters.";
     setMessage(pinMessage, message, "warning");
     setMessage(goalsMessage, message, "warning");
+    setMessage(loadLogMessage, message, "warning");
+    resetLoadLog();
   }
 }
 
@@ -351,10 +386,12 @@ goalsForm.addEventListener("submit", async (event) => {
 
 chapterSelect.addEventListener("change", () => {
   loadGoalsForChapter();
+  loadUploadLogForChapter();
 });
 
 async function init() {
   attachPinToggles();
+  resetLoadLog();
   try {
     const authenticated = await ensureAuthenticated();
     if (!authenticated) return;
@@ -363,6 +400,45 @@ async function init() {
     const message = error.message || "Unable to load chapters.";
     setMessage(pinMessage, message, "warning");
     setMessage(goalsMessage, message, "warning");
+    setMessage(loadLogMessage, message, "warning");
+    resetLoadLog();
+  }
+}
+
+async function loadUploadLogForChapter() {
+  const chapter = getChapterValue();
+  const requestToken = ++loadLogRequestToken;
+
+  if (!chapter) {
+    resetLoadLog();
+    setMessage(loadLogMessage, "Select a chapter to view report load history.");
+    return;
+  }
+
+  setMessage(loadLogMessage, "Loading report load history...");
+
+  try {
+    const response = await fetch(`/api/analytics?chapter=${encodeURIComponent(chapter)}`);
+    if (response.status === 401) {
+      redirectToLogin();
+      return;
+    }
+    const payload = await response.json().catch(() => ({}));
+    if (!response.ok) {
+      throw new Error(payload.detail || "Unable to load report history.");
+    }
+    if (requestToken !== loadLogRequestToken) {
+      return;
+    }
+
+    renderLoadLog(payload);
+    setMessage(loadLogMessage, "Report load history loaded.", "success");
+  } catch (error) {
+    if (requestToken !== loadLogRequestToken) {
+      return;
+    }
+    resetLoadLog();
+    setMessage(loadLogMessage, error.message || "Unable to load report history.", "warning");
   }
 }
 

@@ -45,14 +45,8 @@ function formatCurrency(value) {
   });
 }
 
-function formatDateTime(value) {
-  if (!value) return "n/a";
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) return String(value);
-  return parsed.toLocaleString();
-}
-
 function setMeta(payload) {
+  void payload;
   metaText.textContent = "";
   metaText.style.display = "none";
 }
@@ -220,7 +214,7 @@ function renderClubMembers(payload) {
 }
 
 function renderPayload(payload) {
-  reportTitle.textContent = `BNI ${payload.chapter} Weekly Report`;
+  reportTitle.textContent = "BNI Weekly Report";
   setMeta(payload);
   renderWeeklyCards(payload);
   renderBarChart(payload);

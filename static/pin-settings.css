@@ -119,6 +119,31 @@ body {
   gap: 10px;
 }
 
+.load-log-wrap {
+  border: 1px solid rgba(100, 116, 139, 0.25);
+  border-radius: 12px;
+  background: #f5f8fc;
+  padding: 12px;
+  display: grid;
+  gap: 10px;
+}
+
+.load-log-wrap h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.load-log-grid {
+  display: grid;
+  gap: 6px;
+}
+
+.load-log-grid p {
+  margin: 0;
+  color: #334155;
+  font-size: 0.9rem;
+}
+
 .pin-form,
 .goals-form {
   gap: 12px;

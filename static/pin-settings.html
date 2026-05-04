@@ -4,7 +4,7 @@
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1" />
     <title>BNI Chapter Security Settings</title>
-    <link rel="stylesheet" href="/static/pin-settings.css?v=20260424_goals_pin_popup" />
+    <link rel="stylesheet" href="/static/pin-settings.css?v=20260504_load_log" />
   </head>
   <body>
     <main class="pin-page">
@@ -31,6 +31,17 @@
             <label for="chapterSelect">Chapter</label>
             <div class="chapter-row">
               <select id="chapterSelect"></select>
+            </div>
+          </div>
+          <div class="load-log-wrap">
+            <h3>Latest Report Loads</h3>
+            <p id="loadLogMessage" class="message">Select a chapter to view report load history.</p>
+            <div class="load-log-grid">
+              <p><strong>Weekly:</strong> <span id="weeklyLoadAt">Not uploaded</span></p>
+              <p><strong>YTD:</strong> <span id="ytdLoadAt">Not uploaded</span></p>
+              <p><strong>Traffic:</strong> <span id="trafficLoadAt">Not uploaded</span></p>
+              <p><strong>Traffic Month:</strong> <span id="trafficMonth">Not set</span></p>
+              <p><strong>Source:</strong> <span id="loadSource">n/a</span></p>
             </div>
           </div>
         </section>
@@ -138,6 +149,6 @@
       </section>
     </main>
 
-    <script src="/static/pin-settings.js?v=20260424_goals_pin_popup"></script>
+    <script src="/static/pin-settings.js?v=20260504_load_log"></script>
   </body>
 </html>
