@@ -376,6 +376,16 @@ th {
   letter-spacing: 0.02em;
 }
 
+.analytics-credit a {
+  color: inherit;
+  text-decoration: none;
+}
+
+.analytics-credit a:hover,
+.analytics-credit a:focus-visible {
+  text-decoration: underline;
+}
+
 @media (max-width: 980px) {
   .card-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
