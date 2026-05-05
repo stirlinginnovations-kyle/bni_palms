@@ -194,7 +194,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
-  align-items: end;
+  align-items: stretch;
   min-height: 220px;
   padding: 12px 8px 6px;
   border-radius: 10px;
@@ -204,6 +204,8 @@ h1 {
 
 .bar-group {
   display: grid;
+  grid-template-rows: 160px 2.2em 3.8em;
+  align-content: start;
   justify-items: center;
   gap: 7px;
 }
@@ -214,7 +216,8 @@ h1 {
   align-items: flex-end;
   justify-content: center;
   gap: 6px;
-  min-height: 150px;
+  height: 100%;
+  min-height: 0;
 }
 
 .bar {
@@ -231,14 +234,23 @@ h1 {
 }
 
 .bar-label {
+  width: 100%;
+  display: flex;
+  align-items: flex-start;
+  justify-content: center;
   text-align: center;
   font-size: 0.76rem;
   color: #d4d8e3;
   line-height: 1.2;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .bar-values {
+  width: 100%;
   font-size: 0.7rem;
+  line-height: 1.2;
   color: var(--muted);
   text-align: center;
 }
