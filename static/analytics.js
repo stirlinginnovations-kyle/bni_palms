@@ -2,7 +2,6 @@ const chapterSelect = document.getElementById("chapterSelect");
 const reportTitle = document.getElementById("reportTitle");
 const metaText = document.getElementById("metaText");
 const printChapterName = document.getElementById("printChapterName");
-const printBtn = document.getElementById("printBtn");
 
 const weeklyVisitors = document.getElementById("weeklyVisitors");
 const weeklyCeu = document.getElementById("weeklyCeu");
@@ -288,10 +287,6 @@ chapterSelect.addEventListener("change", (event) => {
   if (!selected) return;
   printChapterName.textContent = selected;
   loadAnalytics(selected);
-});
-
-printBtn.addEventListener("click", () => {
-  window.print();
 });
 
 async function init() {
