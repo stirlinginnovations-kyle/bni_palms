@@ -1,6 +1,8 @@
 const chapterSelect = document.getElementById("chapterSelect");
 const reportTitle = document.getElementById("reportTitle");
 const metaText = document.getElementById("metaText");
+const printChapterName = document.getElementById("printChapterName");
+const printBtn = document.getElementById("printBtn");
 
 const weeklyVisitors = document.getElementById("weeklyVisitors");
 const weeklyCeu = document.getElementById("weeklyCeu");
@@ -214,7 +216,9 @@ function renderClubMembers(payload) {
 }
 
 function renderPayload(payload) {
-  reportTitle.textContent = "BNI Weekly Report";
+  const chapter = String(payload.chapter || chapterSelect.value || "").trim();
+  reportTitle.textContent = chapter ? `${chapter} Weekly Report` : "BNI Weekly Report";
+  printChapterName.textContent = chapter || "";
   setMeta(payload);
   renderWeeklyCards(payload);
   renderBarChart(payload);
@@ -282,7 +286,12 @@ async function loadChapters() {
 chapterSelect.addEventListener("change", (event) => {
   const selected = String(event.target.value || "").trim();
   if (!selected) return;
+  printChapterName.textContent = selected;
   loadAnalytics(selected);
+});
+
+printBtn.addEventListener("click", () => {
+  window.print();
 });
 
 async function init() {

@@ -98,7 +98,7 @@ h1 {
 
 .toolbar {
   display: grid;
-  grid-template-columns: minmax(240px, 350px);
+  grid-template-columns: minmax(240px, 350px) 1fr auto;
   align-items: center;
   gap: 12px;
   padding: 14px 18px 12px;
@@ -120,6 +120,27 @@ h1 {
   border-radius: 8px;
   padding: 10px 12px;
   font-size: 0.95rem;
+}
+
+.print-chapter-name {
+  display: none;
+}
+
+.print-btn {
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  border-radius: 8px;
+  background: #f5f7fb;
+  color: #111827;
+  cursor: pointer;
+  font: inherit;
+  font-size: 0.9rem;
+  font-weight: 800;
+  padding: 10px 14px;
+}
+
+.print-btn:hover,
+.print-btn:focus-visible {
+  background: #ffffff;
 }
 
 .meta-text {
@@ -456,5 +477,226 @@ th {
 
   .analytics-credit {
     text-align: left;
+  }
+}
+
+@media print {
+  @page {
+    size: letter landscape;
+    margin: 0.35in;
+  }
+
+  :root {
+    --panel-bg: #ffffff;
+    --panel-bg-soft: #f5f7fb;
+    --panel-border: #d7dde7;
+    --text: #111827;
+    --muted: #475569;
+    --card-bg: #ffffff;
+  }
+
+  * {
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  body {
+    min-height: auto;
+    background: #ffffff;
+    color: #111827;
+  }
+
+  .analytics-page {
+    max-width: none;
+    padding: 0;
+  }
+
+  .analytics-header {
+    margin-bottom: 8px;
+  }
+
+  .bni-logo {
+    width: 94px;
+  }
+
+  .brand-subtitle {
+    color: #64748b;
+    font-size: 0.78rem;
+  }
+
+  h1 {
+    color: #111827;
+    font-size: 1.35rem;
+  }
+
+  .analytics-shell {
+    border: 1px solid #d7dde7;
+    border-radius: 0;
+    background: #ffffff;
+    box-shadow: none;
+    overflow: visible;
+  }
+
+  .toolbar {
+    grid-template-columns: 1fr;
+    padding: 7px 10px;
+    border-bottom: 1px solid #d7dde7;
+  }
+
+  .toolbar select,
+  .print-btn {
+    display: none;
+  }
+
+  .print-chapter-name {
+    display: block;
+    color: #475569;
+    font-size: 0.82rem;
+    font-weight: 800;
+  }
+
+  .weekly-cards {
+    padding: 9px 10px 10px;
+  }
+
+  .weekly-cards h2,
+  .panel h3 {
+    color: #111827;
+    font-size: 0.94rem;
+    margin-bottom: 7px;
+  }
+
+  .card-grid {
+    grid-template-columns: repeat(5, minmax(0, 1fr));
+    gap: 7px;
+  }
+
+  .metric-card {
+    border-color: #d7dde7;
+    border-radius: 6px;
+    padding: 7px 8px;
+    background: #ffffff;
+  }
+
+  .metric-card p {
+    color: #64748b;
+    font-size: 0.66rem;
+  }
+
+  .metric-card strong {
+    color: #111827;
+    font-size: 1.22rem;
+  }
+
+  .panel-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .panel {
+    min-height: 0;
+    padding: 9px 10px 10px;
+    border-color: #d7dde7;
+    break-inside: avoid;
+    page-break-inside: avoid;
+  }
+
+  .bar-chart {
+    min-height: 158px;
+    padding: 8px 6px 5px;
+    border-color: #d7dde7;
+    background: #f5f7fb;
+    gap: 8px;
+  }
+
+  .bar-group {
+    grid-template-rows: 102px 1.9em 3em;
+    gap: 5px;
+  }
+
+  .bar {
+    width: min(22px, 42%);
+    border-radius: 5px 5px 0 0;
+  }
+
+  .bar-label {
+    color: #334155;
+    font-size: 0.64rem;
+  }
+
+  .bar-values {
+    color: #64748b;
+    font-size: 0.58rem;
+  }
+
+  .traffic-layout {
+    min-height: 158px;
+    grid-template-columns: 150px 1fr;
+    gap: 12px;
+  }
+
+  .donut {
+    width: 124px;
+    height: 124px;
+  }
+
+  .donut::after {
+    background: #ffffff;
+    box-shadow: inset 0 0 0 1px #d7dde7;
+  }
+
+  .donut span {
+    color: #111827;
+    font-size: 0.72rem;
+  }
+
+  .traffic-legend {
+    gap: 5px;
+  }
+
+  .traffic-legend li {
+    color: #111827;
+    font-size: 0.72rem;
+  }
+
+  .table-wrap,
+  .club-list {
+    border-color: #d7dde7;
+    border-radius: 6px;
+    background: #ffffff;
+  }
+
+  th,
+  td {
+    border-color: #d7dde7;
+    color: #111827;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+
+  th {
+    background: #eef2f7;
+    color: #334155;
+    font-size: 0.62rem;
+  }
+
+  .club-list li {
+    border-color: #d7dde7;
+    color: #111827;
+    padding: 6px 8px;
+    font-size: 0.72rem;
+  }
+
+  .empty {
+    color: #64748b;
+    font-size: 0.72rem;
+  }
+
+  .analytics-credit {
+    color: #64748b;
+    border-color: #d7dde7;
+    padding: 7px 10px 0;
+    font-size: 0.66rem;
   }
 }
