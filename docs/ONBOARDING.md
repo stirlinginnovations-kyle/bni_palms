@@ -59,6 +59,7 @@ Use `/pin-settings` to:
 Important:
 - Saving a new chapter PIN requires the current chapter PIN.
 - Saving yearly goals requires chapter PIN confirmation.
+- Default pin is 12345 unless chapter has changed the password
 
 ## 8. Common Issues and Fixes
 - `Nothing happens after selecting file`:
