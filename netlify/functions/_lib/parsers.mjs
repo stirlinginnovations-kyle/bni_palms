@@ -37,6 +37,7 @@ export const TL_COLUMNS = [
 
 const TL_POINTS_INDEX_LEGACY = TL_COLUMNS.indexOf("Points");
 const TL_POINTS_INDEX_CURRENT = 4;
+const TL_SCORE_INDEX_VISUAL = 0;
 const TL_EXPECTED_NUMERIC_FIELDS = 23;
 
 export function parseValue(value) {
@@ -251,7 +252,11 @@ function percentile(values, pct) {
 }
 
 function selectTrafficPointsIndex(numericRows) {
-  const candidates = [TL_POINTS_INDEX_CURRENT, TL_POINTS_INDEX_LEGACY];
+  const candidates = [
+    TL_SCORE_INDEX_VISUAL,
+    TL_POINTS_INDEX_CURRENT,
+    TL_POINTS_INDEX_LEGACY,
+  ];
   let bestIndex = TL_POINTS_INDEX_CURRENT;
   let bestRatio = -1;
   let bestP90 = -1;
@@ -290,79 +295,132 @@ function isNumericToken(token) {
   return /^\d[\d,]*$/.test(text) || /^\d*\.\d+$/.test(text) || /^\d+%$/.test(text);
 }
 
+async function renderTrafficPdfPage(pageData) {
+  const textContent = await pageData.getTextContent({
+    normalizeWhitespace: false,
+    disableCombineTextItems: true,
+  });
+  const rowMap = new Map();
+
+  for (const item of textContent.items || []) {
+    const text = String(item?.str || "").trim();
+    if (!text) {
+      continue;
+    }
+    const x = Number(item?.transform?.[4] || 0);
+    const y = Number(item?.transform?.[5] || 0);
+    const yKey = String(Math.round(y * 10) / 10);
+    if (!rowMap.has(yKey)) {
+      rowMap.set(yKey, { y, items: [] });
+    }
+    rowMap.get(yKey).items.push({ x, text });
+  }
+
+  return Array.from(rowMap.values())
+    .sort((a, b) => b.y - a.y)
+    .map((row) =>
+      row.items
+        .sort((a, b) => a.x - b.x)
+        .map((item) => item.text)
+        .join(" "),
+    )
+    .join("\n");
+}
+
 export async function parseTrafficLightsPdf(buffer) {
-  const parsed = await pdfParse(buffer);
+  const parsed = await pdfParse(buffer, { pagerender: renderTrafficPdfPage });
   const rawText = String(parsed?.text || "");
-  const pageTexts = rawText.includes("\f") ? rawText.split("\f") : [rawText];
+  const lines = rawText
+    .split(/\r?\n/)
+    .map((line) => line.trim())
+    .filter((line) => Boolean(line));
 
   const memberRows = [];
   const numericRows = [];
 
-  for (const pageText of pageTexts) {
-    const lines = String(pageText || "")
-      .split(/\r?\n/)
-      .map((line) => line.trim())
-      .filter((line) => Boolean(line));
-    if (!lines.length) {
+  let chapter = "";
+  let previousLine = "";
+  let inMemberRows = false;
+  let useNextLineAsChapter = false;
+
+  for (const line of lines) {
+    if (useNextLineAsChapter) {
+      chapter = line;
+      useNextLineAsChapter = false;
+      previousLine = line;
       continue;
     }
 
-    const header = lines[0];
-    const chapterMatch = header.match(/[A-Z]{2} .+? Region for/);
-    const chapter = chapterMatch
-      ? header.slice(0, chapterMatch.index).trim()
-      : header.split("Region for")[0].trim();
-
-    let start = 0;
-    const launchedIndex = lines.findIndex((line) => line.startsWith("Launched"));
-    if (launchedIndex >= 0) {
-      start = launchedIndex;
+    if (line.includes("Region for")) {
+      const chapterMatch = line.match(/[A-Z]{2} .+? Region for/);
+      const detectedChapter = chapterMatch
+        ? line.slice(0, chapterMatch.index).trim()
+        : previousLine.trim();
+      if (detectedChapter && detectedChapter !== "Traffic Lights") {
+        chapter = detectedChapter;
+      } else {
+        useNextLineAsChapter = true;
+      }
+      inMemberRows = false;
+      previousLine = line;
+      continue;
     }
 
-    for (const line of lines.slice(start + 1)) {
-      if (
-        line.includes("Chapter Totals") ||
-        line.startsWith("Designed and produced") ||
-        line.startsWith("To protect") ||
-        line.includes("Personal Data")
-      ) {
+    if (line.startsWith("Launched")) {
+      inMemberRows = true;
+      previousLine = line;
+      continue;
+    }
+
+    if (
+      line.includes("Chapter Totals") ||
+      line.startsWith("Designed and produced") ||
+      line.startsWith("To protect") ||
+      line.includes("Personal Data") ||
+      line.startsWith("Page ")
+    ) {
+      inMemberRows = false;
+      previousLine = line;
+      continue;
+    }
+
+    if (!inMemberRows || !line.includes(",")) {
+      previousLine = line;
+      continue;
+    }
+
+    const tokens = line.split(/\s+/);
+    const numTokens = [];
+    for (let idx = tokens.length - 1; idx >= 0; idx -= 1) {
+      const token = tokens[idx];
+      if (!isNumericToken(token)) {
         break;
       }
-      if (!line.includes(",")) {
-        continue;
-      }
-
-      const tokens = line.split(/\s+/);
-      const numTokens = [];
-      for (let idx = tokens.length - 1; idx >= 0; idx -= 1) {
-        const token = tokens[idx];
-        if (!isNumericToken(token)) {
-          break;
-        }
-        numTokens.push(token);
-      }
-
-      if (numTokens.length < TL_EXPECTED_NUMERIC_FIELDS) {
-        continue;
-      }
-
-      const trimmedNumTokens = numTokens.slice(0, TL_EXPECTED_NUMERIC_FIELDS);
-      const nums = [...trimmedNumTokens].reverse();
-      const nameTokens = tokens.slice(0, tokens.length - TL_EXPECTED_NUMERIC_FIELDS);
-      const name = nameTokens.join(" ");
-      let first = "";
-      let last = "";
-      if (name.includes(",")) {
-        const split = name.split(",", 2);
-        last = String(split[0] || "").trim();
-        first = String(split[1] || "").trim();
-      } else {
-        last = name.trim();
-      }
-
-      memberRows.push({ chapter, first, last, nums });
-      numericRows.push(nums);
+      numTokens.push(token);
     }
+
+    if (numTokens.length < TL_EXPECTED_NUMERIC_FIELDS) {
+      previousLine = line;
+      continue;
+    }
+
+    const trimmedNumTokens = numTokens.slice(0, TL_EXPECTED_NUMERIC_FIELDS);
+    const nums = [...trimmedNumTokens].reverse();
+    const nameTokens = tokens.slice(0, tokens.length - TL_EXPECTED_NUMERIC_FIELDS);
+    const name = nameTokens.join(" ");
+    let first = "";
+    let last = "";
+    if (name.includes(",")) {
+      const split = name.split(",", 2);
+      last = String(split[0] || "").trim();
+      first = String(split[1] || "").trim();
+    } else {
+      last = name.trim();
+    }
+
+    memberRows.push({ chapter, first, last, nums });
+    numericRows.push(nums);
+    previousLine = line;
   }
 
   const pointsIndex = selectTrafficPointsIndex(numericRows);
