@@ -373,8 +373,15 @@ def _public_yearly_goals_payload(goals: Dict[str, float]) -> Dict[str, object]:
 
 def load_chapters() -> List[str]:
     if not SUPABASE:
-        raise SupabaseError("Supabase is not configured.")
-    return SUPABASE.list_active_chapters()
+        return load_chapters_file()
+    try:
+        chapters = SUPABASE.list_active_chapters()
+    except SupabaseError:
+        fallback_chapters = load_chapters_file()
+        if fallback_chapters:
+            return fallback_chapters
+        raise
+    return chapters or load_chapters_file()
 
 
 def safe_filename(name: str) -> str:
@@ -1152,6 +1159,13 @@ def api_login(payload: LoginPayload):
     )
     _set_auth_cookie(response)
     return response
+
+
+@app.get("/api/session")
+def api_session(request: Request):
+    if not _is_authenticated(request):
+        raise HTTPException(status_code=401, detail="Login required.")
+    return {"status": "ok"}
 
 
 @app.post("/api/logout")

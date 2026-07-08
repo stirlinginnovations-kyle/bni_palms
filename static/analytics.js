@@ -217,7 +217,9 @@ function renderClubMembers(payload) {
 function renderPayload(payload) {
   const chapter = String(payload.chapter || chapterSelect.value || "").trim();
   reportTitle.textContent = chapter ? `${chapter} Weekly Report` : "BNI Weekly Report";
-  printChapterName.textContent = chapter || "";
+  if (printChapterName) {
+    printChapterName.textContent = chapter || "";
+  }
   setMeta(payload);
   renderWeeklyCards(payload);
   renderBarChart(payload);
@@ -285,7 +287,9 @@ async function loadChapters() {
 chapterSelect.addEventListener("change", (event) => {
   const selected = String(event.target.value || "").trim();
   if (!selected) return;
-  printChapterName.textContent = selected;
+  if (printChapterName) {
+    printChapterName.textContent = selected;
+  }
   loadAnalytics(selected);
 });
 

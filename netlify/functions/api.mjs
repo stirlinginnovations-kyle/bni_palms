@@ -1,3 +1,4 @@
+import fs from "node:fs";
 import path from "node:path";
 
 import {
@@ -44,6 +45,21 @@ import {
 import { SupabaseClient, SupabaseError } from "./_lib/supabase.mjs";
 
 const SUPABASE = SupabaseClient.fromEnv();
+const CHAPTERS_FILE = path.join(process.cwd(), "chapters.json");
+
+function loadFallbackChapters() {
+  try {
+    const payload = JSON.parse(fs.readFileSync(CHAPTERS_FILE, "utf8"));
+    if (!Array.isArray(payload?.chapters)) {
+      return [];
+    }
+    return payload.chapters
+      .map((chapter) => String(chapter || "").trim())
+      .filter(Boolean);
+  } catch {
+    return [];
+  }
+}
 
 function getRoutePath(pathname) {
   if (pathname.startsWith("/api/")) {
@@ -532,12 +548,21 @@ export default async function handler(request) {
   if (route === "chapters" && method === "GET") {
     const { error } = supabaseOr503();
     if (error) {
+      const fallbackChapters = loadFallbackChapters();
+      if (fallbackChapters.length) {
+        return jsonResponse(200, fallbackChapters);
+      }
       return error;
     }
     try {
       const chapters = await SUPABASE.listActiveChapters();
-      return jsonResponse(200, chapters);
+      const fallbackChapters = loadFallbackChapters();
+      return jsonResponse(200, chapters.length ? chapters : fallbackChapters);
     } catch (supabaseError) {
+      const fallbackChapters = loadFallbackChapters();
+      if (fallbackChapters.length) {
+        return jsonResponse(200, fallbackChapters);
+      }
       return failure(502, `Failed to load chapters from Supabase: ${supabaseError}`);
     }
   }
