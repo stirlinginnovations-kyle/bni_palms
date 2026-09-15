@@ -97,6 +97,16 @@ function renderBarChart(payload) {
     pair.appendChild(currentBar);
     pair.appendChild(goalBar);
 
+    if (goalValue > 0 && currentValue >= goalValue) {
+      const check = document.createElement("span");
+      check.className = "goal-check";
+      check.setAttribute("role", "img");
+      check.setAttribute("aria-label", `${metric.label}: goal reached`);
+      check.title = "Goal reached";
+      check.textContent = "\u2713";
+      pair.appendChild(check);
+    }
+
     const label = document.createElement("div");
     label.className = "bar-label";
     label.textContent = metric.label;
@@ -113,6 +123,14 @@ function renderBarChart(payload) {
     group.appendChild(pair);
     group.appendChild(label);
     group.appendChild(values);
+
+    if (goalValue > 0 && currentValue >= goalValue) {
+      const status = document.createElement("span");
+      status.className = "goal-status";
+      status.textContent = "Goal reached";
+      group.appendChild(status);
+    }
+
     barChart.appendChild(group);
   });
 }

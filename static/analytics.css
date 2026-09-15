@@ -198,6 +198,7 @@ h1 {
   display: grid;
   grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
+  grid-auto-rows: 160px 2.2em minmax(3.8em, auto) auto;
   align-items: stretch;
   min-height: 220px;
   padding: 12px 8px 6px;
@@ -208,13 +209,16 @@ h1 {
 
 .bar-group {
   display: grid;
-  grid-template-rows: 160px 2.2em 3.8em;
+  grid-row: span 4;
+  grid-template-rows: subgrid;
   align-content: start;
   justify-items: center;
   gap: 7px;
 }
 
 .bar-pair {
+  position: relative;
+  align-self: end;
   width: 100%;
   display: flex;
   align-items: flex-end;
@@ -222,6 +226,26 @@ h1 {
   gap: 6px;
   height: 100%;
   min-height: 0;
+}
+
+.goal-check {
+  position: absolute;
+  top: 50%;
+  left: 50%;
+  transform: translate(-50%, -50%);
+  z-index: 1;
+  display: grid;
+  place-items: center;
+  width: 36px;
+  height: 36px;
+  border: 1px solid #72e4aa;
+  border-radius: 50%;
+  background: #183e30;
+  color: #72e4aa;
+  font-family: "Segoe UI", sans-serif;
+  font-size: 24px;
+  font-weight: 700;
+  line-height: 1;
 }
 
 .bar {
@@ -257,6 +281,16 @@ h1 {
   line-height: 1.2;
   color: var(--muted);
   text-align: center;
+}
+
+.goal-status {
+  display: block;
+  grid-row: 4;
+  font-size: 0.7rem;
+  line-height: 1.2;
+  text-align: center;
+  color: #72e4aa;
+  font-weight: 600;
 }
 
 .traffic-layout {
@@ -586,6 +620,7 @@ th {
 
   .bar-chart {
     min-height: 158px;
+    grid-auto-rows: 102px 1.9em minmax(3em, auto) auto;
     padding: 8px 6px 5px;
     border-color: var(--panel-border);
     background: var(--panel-bg-soft);
@@ -593,8 +628,15 @@ th {
   }
 
   .bar-group {
-    grid-template-rows: 102px 1.9em 3em;
     gap: 5px;
+  }
+
+  .goal-status {
+    font-size: 0.58rem;
+  }
+
+  .bar-pair {
+    min-height: 0;
   }
 
   .bar {
