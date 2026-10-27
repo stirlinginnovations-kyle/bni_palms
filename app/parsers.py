@@ -97,31 +97,12 @@ def parse_spreadsheetml_xls(path: Path) -> List[Dict[str, object]]:
     rows = table.findall("ss:Row", SPREADSHEET_NS)
     header: List[str] = []
     data_rows: List[Dict[str, object]] = []
-    row_num = 0
-
     for row in rows:
-        idx_attr = row.get(SS_INDEX_ATTR)
-        if idx_attr:
-            try:
-                row_num = int(idx_attr)
-            except ValueError:
-                row_num += 1
-        else:
-            row_num += 1
-
-        if row_num < SPREADSHEET_TABLE_START_ROW:
-            continue
-
         values = _row_values(row)
-        if row_num == SPREADSHEET_TABLE_START_ROW:
-            if "First Name" in values and "Last Name" in values:
-                header = [v.strip() if v else "" for v in values]
-            else:
-                # PALMS weekly/YTD files always have table headers on row 9.
-                return []
-            continue
-
         if not header:
+            candidate = [str(v).strip() if v is not None else "" for v in values]
+            if "First Name" in candidate and "Last Name" in candidate:
+                header = candidate
             continue
 
         if not any(v not in ("", None) for v in values):
@@ -167,20 +148,16 @@ def parse_openxml_xlsx(path: Path) -> List[Dict[str, object]]:
         data_rows: List[Dict[str, object]] = []
 
         row_iter = worksheet.iter_rows(
-            min_row=SPREADSHEET_TABLE_START_ROW,
+            min_row=1,
             values_only=True,
         )
-        for offset, row_values in enumerate(row_iter):
-            row_num = SPREADSHEET_TABLE_START_ROW + offset
+        for row_values in row_iter:
             values = list(row_values or [])
 
-            if row_num == SPREADSHEET_TABLE_START_ROW:
-                header = [str(v).strip() if v is not None else "" for v in values]
-                if "First Name" not in header or "Last Name" not in header:
-                    return []
-                continue
-
             if not header:
+                candidate = [str(v).strip() if v is not None else "" for v in values]
+                if "First Name" in candidate and "Last Name" in candidate:
+                    header = candidate
                 continue
 
             if not any(v not in ("", None) for v in values):
@@ -229,30 +206,14 @@ def _extract_spreadsheetml_summary_metrics(path: Path) -> Dict[str, object] | No
 
     rows = table.findall("ss:Row", SPREADSHEET_NS)
     header: List[str] = []
-    row_num = 0
-
     for row in rows:
-        idx_attr = row.get(SS_INDEX_ATTR)
-        if idx_attr:
-            try:
-                row_num = int(idx_attr)
-            except ValueError:
-                row_num += 1
-        else:
-            row_num += 1
-
-        if row_num < SPREADSHEET_TABLE_START_ROW:
-            continue
-
         values = _row_values(row)
-        if row_num == SPREADSHEET_TABLE_START_ROW:
-            header = [v.strip() if v else "" for v in values]
-            if "First Name" not in header or "Last Name" not in header:
-                return None
+        if not header:
+            candidate = [str(v).strip() if v is not None else "" for v in values]
+            if "First Name" in candidate and "Last Name" in candidate:
+                header = candidate
             continue
 
-        if not header:
-            continue
         if not any(v not in ("", None) for v in values):
             continue
 
@@ -284,18 +245,15 @@ def _extract_openxml_summary_metrics(path: Path) -> Dict[str, object] | None:
 
         header: List[str] = []
         row_iter = worksheet.iter_rows(
-            min_row=SPREADSHEET_TABLE_START_ROW,
+            min_row=1,
             values_only=True,
         )
-        for offset, row_values in enumerate(row_iter):
-            row_num = SPREADSHEET_TABLE_START_ROW + offset
+        for row_values in row_iter:
             values = list(row_values or [])
-            if row_num == SPREADSHEET_TABLE_START_ROW:
-                header = [str(v).strip() if v is not None else "" for v in values]
-                if "First Name" not in header or "Last Name" not in header:
-                    return None
-                continue
             if not header:
+                candidate = [str(v).strip() if v is not None else "" for v in values]
+                if "First Name" in candidate and "Last Name" in candidate:
+                    header = candidate
                 continue
             if not any(v not in ("", None) for v in values):
                 continue

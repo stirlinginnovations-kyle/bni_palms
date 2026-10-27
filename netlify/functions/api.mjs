@@ -831,6 +831,9 @@ export default async function handler(request) {
         return failure(400, `Unable to parse ${reportType.toUpperCase()} Excel report.`);
       }
 
+      if (!rows.length) {
+        return failure(400, `No member rows were detected in this ${reportType.toUpperCase()} report. Check that the spreadsheet includes First Name and Last Name column headers and member data.`);
+      }
       parsedRows = rows;
       const summaryRowMetrics = extractChapterSpreadsheetSummaryMetrics(content);
       const columnsLoaded = extractColumns(rows);

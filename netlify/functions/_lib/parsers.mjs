@@ -4,7 +4,6 @@ import pdfParse from "pdf-parse";
 import {
   REFERRALS_TOTAL_COLUMN,
   REFERRAL_COLUMNS,
-  SPREADSHEET_TABLE_START_ROW,
   asNumber,
   roundTotal,
 } from "./common.mjs";
@@ -114,20 +113,24 @@ export function parseChapterSpreadsheet(buffer) {
     header: 1,
     raw: true,
     defval: "",
-    blankrows: false,
+    blankrows: true,
   });
-  if (!Array.isArray(rows) || rows.length < SPREADSHEET_TABLE_START_ROW) {
+  if (!Array.isArray(rows) || !rows.length) {
     return [];
   }
 
-  const headerRow = rows[SPREADSHEET_TABLE_START_ROW - 1] || [];
-  const header = headerRow.map((value) => String(value ?? "").trim());
+  // PALMS exports may include a report preamble or start directly with headers.
+  const headerIndex = rows.findIndex((row) => {
+    const cells = row.map((value) => String(value ?? "").trim());
+    return cells.includes("First Name") && cells.includes("Last Name");
+  });
+  const header = (rows[headerIndex] || []).map((value) => String(value ?? "").trim());
   if (!header.includes("First Name") || !header.includes("Last Name")) {
     return [];
   }
 
   const output = [];
-  for (let rowIndex = SPREADSHEET_TABLE_START_ROW; rowIndex < rows.length; rowIndex += 1) {
+  for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex += 1) {
     const values = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
     const hasContent = values.some((value) => value !== "" && value !== null && value !== undefined);
     if (!hasContent) {
@@ -193,19 +196,23 @@ export function extractChapterSpreadsheetSummaryMetrics(buffer) {
     header: 1,
     raw: true,
     defval: "",
-    blankrows: false,
+    blankrows: true,
   });
-  if (!Array.isArray(rows) || rows.length < SPREADSHEET_TABLE_START_ROW) {
+  if (!Array.isArray(rows) || !rows.length) {
     return null;
   }
 
-  const headerRow = rows[SPREADSHEET_TABLE_START_ROW - 1] || [];
-  const header = headerRow.map((value) => String(value ?? "").trim());
+  // PALMS exports may include a report preamble or start directly with headers.
+  const headerIndex = rows.findIndex((row) => {
+    const cells = row.map((value) => String(value ?? "").trim());
+    return cells.includes("First Name") && cells.includes("Last Name");
+  });
+  const header = (rows[headerIndex] || []).map((value) => String(value ?? "").trim());
   if (!header.includes("First Name") || !header.includes("Last Name")) {
     return null;
   }
 
-  for (let rowIndex = SPREADSHEET_TABLE_START_ROW; rowIndex < rows.length; rowIndex += 1) {
+  for (let rowIndex = headerIndex + 1; rowIndex < rows.length; rowIndex += 1) {
     const values = Array.isArray(rows[rowIndex]) ? rows[rowIndex] : [];
     const hasContent = values.some((value) => value !== "" && value !== null && value !== undefined);
     if (!hasContent) {

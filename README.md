@@ -132,7 +132,8 @@ If these vars are not set, uploads and analytics endpoints return `503` until Su
 - Local copy: files are always written under `uploads/<chapter>/<report_type>/` with a timestamped filename.
 - Source of truth: uploads are persisted to Supabase and analytics is read from Supabase.
 - Weekly/YTD:
-  - parser ignores rows 1-8 and reads headers from row 9
+  - parser detects the First Name/Last Name header row, including standard row-9 reports and exports starting on row 1
+  - rejects reports with no parsed member rows before replacing existing dashboard data
   - parser adds per-member `Referrals Total` = `RGI + RGO`
   - accepts `.xls` and `.xlsx` uploads
   - uploads current file to `chapters/{chapter_slug}/{weekly|ytd}.{xls|xlsx}` (matching uploaded extension)

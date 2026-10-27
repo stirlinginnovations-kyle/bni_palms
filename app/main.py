@@ -1432,6 +1432,11 @@ async def upload_file(
                 detail=f"Unable to parse {report_type.upper()} Excel report.",
             ) from exc
 
+        if not rows:
+            raise HTTPException(
+                status_code=400,
+                detail=f"No member rows were detected in this {report_type.upper()} report. Check that the spreadsheet includes First Name and Last Name column headers and member data.",
+            )
         parsed_rows = rows
         summary_row_metrics = extract_chapter_spreadsheet_summary_metrics(target_path)
         columns_loaded = _extract_columns(rows)
